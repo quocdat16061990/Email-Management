@@ -1,0 +1,354 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}Chi tiết khóa học | {{ company_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    .floating-feedback {
+        position: fixed;
+        top: 88px;
+        right: 24px;
+        z-index: 2000;
+        min-width: 320px;
+        max-width: 460px;
+        border-radius: 14px;
+        box-shadow: 0 20px 40px rgba(15, 23, 42, 0.18);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex align-items-center justify-content-between">
+        <div>
+            <a href="{% url 'courses' %}" class="btn btn-outline-secondary d-flex align-items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                Quay lại Danh sách khóa học
+            </a>
+        </div>
+        <div class="text-secondary small">
+            Khóa học ID: <strong class="text-dark">#{{ course.id }}</strong>
+        </div>
+    </div>
+</div>
+
+<div class="row row-cards">
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-body p-4 text-center">
+                <div class="avatar avatar-xl mb-3" style="width: 80px; height: 80px; font-size: 2rem; border-radius: 20px; background: var(--brand-gradient); color: #ffffff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(168, 85, 247, 0.25);">
+                    {{ course.name|slice:":2"|upper }}
+                </div>
+
+                <h2 class="m-0 font-weight-bold text-dark">{{ course.name }}</h2>
+
+                <div class="mt-2">
+                    {% if course.spotlight_id %}
+                        <span class="badge bg-purple-lt font-weight-bold py-2 px-3 fs-5">
+                            Spotlight ID: <code class="text-indigo">{{ course.spotlight_id }}</code>
+                        </span>
+                    {% else %}
+                        <span class="badge bg-secondary-lt font-weight-bold py-2 px-3 fs-5 italic">Chưa liên kết Spotlight ID</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="card-body p-4 border-top">
+                <h4 class="card-title mb-3">Thông tin khóa học</h4>
+
+                <div class="mb-3">
+                    <label class="form-label text-secondary small m-0">Mô tả</label>
+                    <p class="text-dark m-0">{{ course.description|default:"Chưa có mô tả chi tiết." }}</p>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label text-secondary small m-0">Ngày tạo</label>
+                    <div class="font-weight-medium text-dark">{{ course.created_at|date:"d/m/Y H:i" }}</div>
+                </div>
+
+                <div class="mb-0">
+                    <label class="form-label text-secondary small m-0">Tổng số học viên</label>
+                    <div class="font-weight-bold text-indigo fs-3">{{ student_count }} học viên</div>
+                </div>
+            </div>
+
+            <div class="card-body p-4 border-top">
+                <h4 class="card-title mb-3">Liên kết học tập</h4>
+
+                <div class="d-flex flex-column gap-2">
+                    {% if course.web_link %}
+                        <a href="{{ course.web_link }}" target="_blank" class="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            Website Khóa Học
+                        </a>
+                    {% endif %}
+
+                    {% for link in course.links.all %}
+                        <a href="{{ link.url }}" target="_blank" class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                            {{ link.title }}
+                        </a>
+                    {% empty %}
+                        {% if not course.web_link %}
+                            <div class="text-center text-secondary small italic py-2">Chưa cấu hình liên kết học tập</div>
+                        {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-body p-4">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                    <div>
+                        <h3 class="card-title mb-1">Đăng ký học viên vào khóa học</h3>
+                    </div>
+                    <button class="btn btn-primary" type="button" onclick="openEnrollStudentModal()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        Thêm học viên
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row row-cards mt-1">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title mb-1">Danh sách học viên từ Voomly</h3>
+                    <p class="card-subtitle text-secondary m-0">Hiển thị trực tiếp học viên đang có trong khóa học trên Voomly.</p>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                {% if voomly_error %}
+                    <div class="p-4 text-danger">
+                        Không tải được danh sách học viên từ Voomly: {{ voomly_error }}
+                    </div>
+                {% else %}
+                    <div class="table-responsive">
+                        <table class="table table-vcenter card-table table-striped">
+                            <thead>
+                                <tr>
+                                    <th>Học viên</th>
+                                    <th>Email</th>
+                                    <th>Ngày đăng ký</th>
+                                    <th>Ngày hết hạn</th>
+                                    <th>Trạng thái</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for student in voomly_students %}
+                                    <tr>
+                                        <td>
+                                            <div class="d-flex align-items-center">
+                                                <span class="avatar avatar-sm bg-primary-lt me-2 font-weight-bold">{{ student.name|default:"HV"|slice:":2"|upper }}</span>
+                                                <span class="font-weight-medium text-dark">{{ student.name|default:"Chưa cập nhật" }}</span>
+                                            </div>
+                                        </td>
+                                        <td>{{ student.email }}</td>
+                                        <td>{{ student.registration_date|date:"d/m/Y" }}</td>
+                                        <td>{{ student.expiry_date|date:"d/m/Y" }}</td>
+                                        <td>
+                                            {% if student.status == 'ACTIVE' %}
+                                                <span class="badge bg-success-lt">Đang hoạt động</span>
+                                            {% elif student.status == 'PENDING' %}
+                                                <span class="badge bg-warning-lt">Chờ xử lý</span>
+                                            {% else %}
+                                                <span class="badge bg-danger-lt">Đã hết hạn</span>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+                                {% empty %}
+                                    <tr>
+                                        <td colspan="5" class="text-center py-4 text-secondary italic">Chưa có học viên nào.</td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal modal-blur fade" id="modal-enroll-student" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title" id="enroll-modal-title">Đăng ký học viên vào khóa học</h5>
+                    <p class="m-0 text-secondary small">Khóa học: <span class="badge bg-purple-lt font-weight-bold">{{ course.name }}</span></p>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <div class="modal-body">
+                <form id="enroll-form" method="post" action="{% url 'enroll_student' %}" novalidate>
+                    {% csrf_token %}
+                    <input type="hidden" name="course_id" value="{{ course.id }}">
+
+                    <div class="card border border-primary shadow-none mb-3 bg-light">
+                        <div class="card-body p-3">
+                            <h4 class="m-0 mb-3 font-weight-bold text-primary">Thông tin học viên</h4>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label required font-weight-bold">Email</label>
+                                    <input type="email" name="customer_email" id="enroll-new-email" class="form-control" placeholder="example@gmail.com" required>
+                                    <div class="invalid-feedback" id="enroll-new-email-error">Vui lòng nhập email hợp lệ.</div>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label font-weight-bold">Họ và Tên</label>
+                                    <input type="text" name="full_name" id="enroll-new-name" class="form-control" placeholder="Nguyễn Văn A">
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label font-weight-bold">Số điện thoại</label>
+                                    <input type="text" name="phone_number" id="enroll-new-phone" class="form-control" placeholder="0987654321">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card border shadow-none mb-3">
+                        <div class="card-body p-3">
+                            <h4 class="mb-3 font-weight-bold">Thông tin đăng ký học</h4>
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label required font-weight-bold">Ngày đăng ký</label>
+                                    <input type="date" name="registration_date" id="enroll-reg-date" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required font-weight-bold">Ngày hết hạn</label>
+                                    <input type="date" name="expiry_date" id="enroll-exp-date" class="form-control" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label required font-weight-bold">Trạng thái</label>
+                                    <select name="status" id="enroll-status" class="form-select" required>
+                                        <option value="ACTIVE" selected>Đang hoạt động</option>
+                                        <option value="PENDING">Chờ xử lý</option>
+                                        <option value="EXPIRED">Đã hết hạn</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer px-0 pb-0 bg-transparent border-0 d-flex justify-content-end gap-2">
+                        <button type="button" class="btn btn-link link-secondary m-0" data-bs-dismiss="modal">Hủy bỏ</button>
+                        <button type="submit" class="btn btn-primary m-0" id="enroll-submit-btn">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                            Xác nhận đăng ký
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var inlineMessageRow = document.querySelector(".page-body .container-fluid > .row.mb-3");
+        if (inlineMessageRow) {
+            inlineMessageRow.remove();
+        }
+
+        function showFloatingFeedback(message, level) {
+            var popup = document.createElement("div");
+            popup.className = "alert alert-" + level + " alert-dismissible floating-feedback";
+            popup.setAttribute("role", "alert");
+            popup.innerHTML = `
+                <div class="d-flex">
+                    <div>${message}</div>
+                </div>
+                <a class="btn-close" data-bs-dismiss="alert" aria-label="close"></a>
+            `;
+
+            document.body.appendChild(popup);
+            setTimeout(function() {
+                popup.classList.add("show");
+            }, 10);
+            setTimeout(function() {
+                popup.remove();
+            }, 4500);
+        }
+
+        {% if messages %}
+            {% for message in messages %}
+                showFloatingFeedback("{{ message|escapejs }}", "{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %}");
+            {% endfor %}
+        {% endif %}
+
+        var enrollModalEl = document.getElementById("modal-enroll-student");
+        var enrollModalObj = new bootstrap.Modal(enrollModalEl, {
+            backdrop: "static",
+            keyboard: false
+        });
+
+        window.openEnrollStudentModal = function() {
+            var today = new Date().toISOString().split("T")[0];
+            var expiry = new Date();
+            expiry.setFullYear(expiry.getFullYear() + 1);
+
+            document.getElementById("enroll-modal-title").textContent = "Đăng ký học viên vào khóa học";
+            document.getElementById("enroll-new-email").value = "";
+            document.getElementById("enroll-new-name").value = "";
+            document.getElementById("enroll-new-phone").value = "";
+            document.getElementById("enroll-reg-date").value = today;
+            document.getElementById("enroll-exp-date").value = expiry.toISOString().split("T")[0];
+            document.getElementById("enroll-status").value = "ACTIVE";
+            document.getElementById("enroll-new-email").classList.remove("is-invalid");
+            document.getElementById("enroll-new-email-error").classList.add("d-none");
+
+            // Reset submit button state
+            var submitBtn = document.getElementById("enroll-submit-btn");
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Xác nhận đăng ký';
+
+            enrollModalObj.show();
+        };
+
+        var enrollRegDateInput = document.getElementById("enroll-reg-date");
+        var enrollExpDateInput = document.getElementById("enroll-exp-date");
+        if (enrollRegDateInput && enrollExpDateInput) {
+            enrollRegDateInput.addEventListener("change", function() {
+                if (enrollRegDateInput.value) {
+                    var regDate = new Date(enrollRegDateInput.value);
+                    var expDate = new Date(regDate);
+                    expDate.setFullYear(expDate.getFullYear() + 1);
+                    enrollExpDateInput.value = expDate.toISOString().split("T")[0];
+                }
+            });
+        }
+
+        var enrollForm = document.getElementById("enroll-form");
+        if (enrollForm) {
+            enrollForm.addEventListener("submit", function(e) {
+                var emailInput = document.getElementById("enroll-new-email");
+                var emailVal = emailInput.value.trim();
+                var emailError = document.getElementById("enroll-new-email-error");
+
+                if (!emailVal || !emailVal.includes("@")) {
+                    e.preventDefault();
+                    emailInput.classList.add("is-invalid");
+                    emailError.classList.remove("d-none");
+                    return false;
+                }
+
+                emailInput.classList.remove("is-invalid");
+                emailError.classList.add("d-none");
+
+                // Show loading state on submit button
+                var submitBtn = document.getElementById("enroll-submit-btn");
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Đang xử lý...';
+            });
+        }
+    });
+</script>
+{% endblock %}

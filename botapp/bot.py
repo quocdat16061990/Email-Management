@@ -19,6 +19,8 @@ from .services import (
     create_or_update_customer,
     extract_otp_from_openai_email,
     is_valid_email,
+    list_available_courses,
+    lookup_customer_by_email,
     mark_customer_otp_received,
 )
 
@@ -26,6 +28,11 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 ASK_EMAIL = 0
+ENROLLMENT_STATUS_LABELS = {
+    "ACTIVE": "Đang hoạt động",
+    "PENDING": "Chờ xử lý",
+    "EXPIRED": "Đã hết hạn",
+}
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -45,7 +52,8 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         return ASK_EMAIL
 
     try:
-        await sync_to_async(create_or_update_customer)(update.effective_chat.id, email_text)
+        customer = await sync_to_async(create_or_update_customer)(update.effective_chat.id, email_text)
+        available_courses = await sync_to_async(list_available_courses)()
     except Exception:
         logger.exception("Không tạo được phiên customer.")
         await update.message.reply_text(
@@ -56,8 +64,18 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 
     context.user_data["email"] = email_text
     context.user_data["otp_session_started_at"] = time.time()
+
+    assigned_courses = ", ".join(course.name for course in customer.courses.all()) or "Chưa có khóa học nào."
+    available_course_lines = "\n".join(
+        f"{index}. {course.name}" for index, course in enumerate(available_courses, start=1)
+    )
+    if not available_course_lines:
+        available_course_lines = "Hệ thống hiện chưa có khóa học nào."
+
     await update.message.reply_text(
         "Email hợp lệ.\n"
+        f"Các khóa học hiện có:\n{available_course_lines}\n\n"
+        f"Khóa học đã gán cho bạn: {assigned_courses}\n\n"
         "Bây giờ hãy bấm gửi OTP trên trang OpenAI, sau đó bấm nút bên dưới để tôi lấy OTP từ Gmail.",
         reply_markup=build_fetch_otp_keyboard(),
     )
@@ -127,6 +145,46 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+def _format_customer_summary(customer) -> str:
+    enrollments = list(customer.enrollments.all())
+    if enrollments:
+        course_block = "\n".join(
+            f"- {enroll.course.name} ({ENROLLMENT_STATUS_LABELS.get(enroll.status, enroll.status)})"
+            for enroll in enrollments
+        )
+    else:
+        course_block = "Chưa có khóa học"
+
+    telegram_value = customer.telegram_chat_id if customer.telegram_chat_id is not None else "Chưa liên kết"
+    status_vi = ENROLLMENT_STATUS_LABELS.get(customer.status, customer.status)
+    return (
+        f"Email: {customer.customer_email}\n"
+        f"Họ tên: {customer.full_name or 'Chưa cập nhật'}\n"
+        f"Số điện thoại: {customer.phone_number or 'Chưa cập nhật'}\n"
+        f"Đang học:\n{course_block}\n"
+        f"Trạng thái: {status_vi}\n"
+        f"Telegram: {telegram_value}"
+    )
+
+
+async def lookup_customer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyword = " ".join(context.args).strip()
+    if not keyword:
+        await update.message.reply_text("Cú pháp: /lookup email@example.com")
+        return
+
+    if not is_valid_email(keyword):
+        await update.message.reply_text("Vui lòng nhập đúng email học viên. Ví dụ: /lookup email@example.com")
+        return
+
+    customer = await sync_to_async(lookup_customer_by_email)(keyword)
+    if not customer:
+        await update.message.reply_text("Không tìm thấy học viên với email này.")
+        return
+
+    await update.message.reply_text(_format_customer_summary(customer))
+
+
 def build_application() -> Application:
     if not settings.TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN chưa được cấu hình trong .env")
@@ -143,6 +201,7 @@ def build_application() -> Application:
         per_message=False,
     )
     application.add_handler(conversation_handler)
+    application.add_handler(CommandHandler("lookup", lookup_customer))
     application.add_handler(CallbackQueryHandler(restart_flow, pattern="^restart_flow$"))
     application.add_handler(CallbackQueryHandler(fetch_openai_otp, pattern="^fetch_openai_otp$"))
     return application

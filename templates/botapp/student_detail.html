@@ -1,0 +1,308 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}Chi tiết học viên | {{ company_name }}{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12 d-flex align-items-center justify-content-between">
+        <div>
+            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary d-flex align-items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+                Quay lại Bảng điều khiển
+            </a>
+        </div>
+        <div class="text-secondary small">
+            ID học viên: <strong class="text-dark">#{{ student.id }}</strong>
+        </div>
+    </div>
+</div>
+
+<div class="row row-cards">
+    <!-- Left Column: Student Profile Information (4 columns) -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-body p-4 text-center">
+                <!-- Big Avatar Initial -->
+                <div class="avatar avatar-xl mb-3" style="width: 80px; height: 80px; font-size: 2rem; border-radius: 20px; background: var(--brand-gradient); color: #ffffff; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 8px 24px rgba(168, 85, 247, 0.25);">
+                    {% if student.full_name %}
+                        {{ student.full_name|slice:":2"|upper }}
+                    {% else %}
+                        HV
+                    {% endif %}
+                </div>
+                
+                <h2 class="m-0 font-weight-bold text-dark">{{ student.full_name|default:"Chưa cập nhật tên" }}</h2>
+                <p class="text-secondary mb-3">{{ student.customer_email }}</p>
+                
+                <!-- Status Badge -->
+                <div>
+                    {% if student.status == 'ACTIVE' %}
+                        <span class="badge bg-success-lt fs-4">Đang hoạt động</span>
+                    {% elif student.status == 'PENDING' %}
+                        <span class="badge bg-warning-lt fs-4">Chờ xử lý</span>
+                    {% else %}
+                        <span class="badge bg-danger-lt fs-4">Đã hết hạn</span>
+                    {% endif %}
+                </div>
+            </div>
+            
+            <div class="card-body p-4 border-top">
+                <h4 class="card-title mb-3">Thông tin liên lạc</h4>
+                <div class="mb-3 d-flex align-items-center">
+                    <span class="text-secondary me-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                    </span>
+                    <div>
+                        <div class="text-secondary small">Số điện thoại</div>
+                        <div class="font-weight-medium text-dark">{{ student.phone_number|default:"Chưa cập nhật" }}</div>
+                    </div>
+                </div>
+
+                <div class="mb-3 d-flex align-items-center">
+                    <span class="text-secondary me-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+                    </span>
+                    <div>
+                        <div class="text-secondary small">Email</div>
+                        <div class="font-weight-medium text-dark">{{ student.customer_email }}</div>
+                    </div>
+                </div>
+
+                <div class="mb-3 d-flex align-items-center">
+                    <span class="text-secondary me-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                    </span>
+                    <div>
+                        <div class="text-secondary small">Telegram liên kết</div>
+                        <div>
+                            {% if student.telegram_chat_id %}
+                                <span class="badge bg-success-lt font-weight-bold d-inline-flex align-items-center gap-1">
+                                    <span class="status-dot status-dot-animated bg-success"></span>
+                                    Đã liên kết (ID: {{ student.telegram_chat_id }})
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary-lt font-weight-bold">Chưa liên kết</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-body p-4 border-top">
+                <h4 class="card-title mb-3">Thời hạn đăng ký</h4>
+                
+                <div class="row text-center mb-3">
+                    <div class="col-6">
+                        <div class="text-secondary small">Ngày đăng ký</div>
+                        <div class="font-weight-bold text-dark">{{ student.registration_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                    <div class="col-6">
+                        <div class="text-secondary small">Ngày hết hạn</div>
+                        <div class="font-weight-bold text-dark">{{ student.expiry_date|date:"d/m/Y"|default:"-" }}</div>
+                    </div>
+                </div>
+
+                <!-- Custom Progress Bar calculated via Javascript -->
+                <div class="mb-1 d-flex justify-content-between small text-secondary">
+                    <span id="expiry-progress-label">Đang tính thời gian...</span>
+                    <span id="expiry-percent">-</span>
+                </div>
+                <div class="progress progress-sm" style="height: 8px; border-radius: 4px;">
+                    <div id="expiry-progress-bar" class="progress-bar bg-primary" role="progressbar" style="width: 0%" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Enrolled Courses List (8 columns) -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header">
+                <div>
+                    <h3 class="card-title">Khóa học đăng ký</h3>
+                    <p class="card-subtitle text-secondary m-0">Danh sách các khóa học học viên này có quyền truy cập.</p>
+                </div>
+            </div>
+            
+            <div class="card-body p-4">
+                <div class="row g-3">
+                    {% for enroll in enrollments %}
+                        <div class="col-md-6">
+                            <div class="card h-100 border p-3 d-flex flex-column justify-content-between" style="border-radius: 12px; background: rgba(250,251,252,0.8); transition: transform 0.2s ease;">
+                                <div>
+                                    <div class="d-flex align-items-center mb-2">
+                                        <span class="avatar avatar-sm bg-purple-lt me-2 font-weight-bold" style="border-radius: 8px;">{{ enroll.course.name|slice:":2"|upper }}</span>
+                                        <h3 class="font-weight-bold text-dark m-0" style="font-size: 1.1rem;">{{ enroll.course.name }}</h3>
+                                    </div>
+                                    <p class="text-secondary small mb-3" style="min-height: 48px; line-height: 1.5; margin-bottom: 12px;">
+                                        {{ enroll.course.description|default:"Chưa có mô tả chi tiết cho khóa học này." }}
+                                    </p>
+                                    
+                                    <!-- Course Enrollment Duration & Status Info -->
+                                    <div class="mb-3 border-top pt-2">
+                                        <div class="d-flex justify-content-between align-items-center mb-2">
+                                            <span class="text-secondary small font-weight-bold">Thời hạn đăng ký</span>
+                                            <span>
+                                                {% if enroll.status == 'ACTIVE' %}
+                                                    <span class="badge bg-success-lt">Đang hoạt động</span>
+                                                {% elif enroll.status == 'PENDING' %}
+                                                    <span class="badge bg-warning-lt">Chờ xử lý</span>
+                                                {% else %}
+                                                    <span class="badge bg-danger-lt">Đã hết hạn</span>
+                                                {% endif %}
+                                            </span>
+                                        </div>
+                                        <div class="row text-center mb-2 bg-light p-2 rounded g-1" style="font-size: 0.75rem; border: 1px solid var(--tblr-border-color-light);">
+                                            <div class="col-6">
+                                                <span class="text-secondary">Đăng ký:</span> <strong class="text-dark">{{ enroll.registration_date|date:"d/m/Y"|default:"-" }}</strong>
+                                            </div>
+                                            <div class="col-6">
+                                                <span class="text-secondary">Hết hạn:</span> <strong class="text-dark">{{ enroll.expiry_date|date:"d/m/Y"|default:"-" }}</strong>
+                                            </div>
+                                        </div>
+                                        <div class="mb-1 d-flex justify-content-between small text-secondary" style="font-size: 0.7rem;">
+                                            <span class="course-expiry-label" data-reg="{{ enroll.registration_date|date:'Y-m-d' }}" data-exp="{{ enroll.expiry_date|date:'Y-m-d' }}">Đang tính...</span>
+                                            <span class="course-expiry-percent">-</span>
+                                        </div>
+                                        <div class="progress progress-xs" style="height: 6px; border-radius: 3px;">
+                                            <div class="course-expiry-bar progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="mt-2 border-top pt-2">
+                                    <div class="text-secondary small mb-2 font-weight-bold" style="font-size: 0.8rem;">Liên kết học tập:</div>
+                                    <div class="d-flex flex-column gap-2">
+                                        <!-- Primary website link -->
+                                        {% if enroll.course.web_link %}
+                                            <a href="{{ enroll.course.web_link }}" target="_blank" class="btn btn-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                                Website Khóa Học
+                                            </a>
+                                        {% endif %}
+                                        
+                                        <!-- Other links from CourseLink relation -->
+                                        {% for link in enroll.course.links.all %}
+                                            <a href="{{ link.url }}" target="_blank" class="btn btn-outline-primary btn-sm w-100 d-flex align-items-center justify-content-center gap-2">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+                                                {{ link.title }}
+                                            </a>
+                                        {% empty %}
+                                            {% if not enroll.course.web_link %}
+                                                <div class="text-center text-secondary small italic py-1">Chưa có liên kết học tập nào</div>
+                                            {% endif %}
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    {% empty %}
+                        <div class="col-12 text-center py-5">
+                            <div class="text-secondary mb-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-lg text-secondary-lt" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l9-5-9-5-9 5 9 5z"/><path d="M12 14v7M4.3 12.3v3.7c0 1.6 3.4 3 7.7 3s7.7-1.4 7.7-3v-3.7"/></svg>
+                            </div>
+                            <h3 class="font-weight-bold text-dark">Chưa tham gia khóa học nào</h3>
+                            <p class="text-secondary small">Vui lòng quay lại Bảng điều khiển và chỉnh sửa học viên để gán khóa học.</p>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        // Reusable function to calculate and update progress bar & labels
+        function updateProgressBar(regDateStr, expDateStr, progressLabel, percentLabel, progressBar) {
+            if (!regDateStr || !expDateStr || regDateStr === "" || expDateStr === "") {
+                progressLabel.textContent = "Chưa có thông tin ngày";
+                percentLabel.textContent = "-";
+                return;
+            }
+            
+            var regDate = new Date(regDateStr);
+            var expDate = new Date(expDateStr);
+            var today = new Date();
+            
+            // Set times to midnight to calculate pure days
+            regDate.setHours(0,0,0,0);
+            expDate.setHours(0,0,0,0);
+            today.setHours(0,0,0,0);
+            
+            var totalDuration = expDate.getTime() - regDate.getTime();
+            var timePassed = today.getTime() - regDate.getTime();
+            
+            var totalDays = Math.round(totalDuration / (1000 * 60 * 60 * 24));
+            var remainingDays = Math.round((expDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            
+            if (totalDays <= 0) {
+                progressLabel.textContent = "Thời hạn không hợp lệ";
+                percentLabel.textContent = "-";
+                return;
+            }
+            
+            var percent = 0;
+            // Clean up old classes
+            progressBar.className = progressBar.className.replace(/\bbg-\w+\b/g, '').trim();
+            
+            if (remainingDays < 0) {
+                percent = 100;
+                progressLabel.innerHTML = `<span class="text-danger font-weight-bold">Đã quá hạn ${Math.abs(remainingDays)} ngày</span>`;
+                percentLabel.textContent = "100%";
+                progressBar.classList.add("bg-danger");
+                progressBar.style.width = "100%";
+            } else if (remainingDays === 0) {
+                percent = 100;
+                progressLabel.innerHTML = `<span class="text-warning font-weight-bold">Hết hạn vào hôm nay!</span>`;
+                percentLabel.textContent = "100%";
+                progressBar.classList.add("bg-warning");
+                progressBar.style.width = "100%";
+            } else {
+                percent = Math.round((timePassed / totalDuration) * 100);
+                percent = Math.max(0, Math.min(100, percent));
+                
+                progressLabel.innerHTML = `Còn lại <strong>${remainingDays}</strong> ngày`;
+                percentLabel.textContent = percent + "%";
+                progressBar.style.width = percent + "%";
+                
+                if (percent >= 90) {
+                    progressBar.classList.add("bg-danger");
+                } else if (percent >= 75) {
+                    progressBar.classList.add("bg-warning");
+                } else {
+                    progressBar.classList.add("bg-success");
+                }
+            }
+        }
+
+        // 1. Calculate overall progress for the student
+        var overallRegDateStr = "{{ student.registration_date|date:'Y-m-d' }}";
+        var overallExpDateStr = "{{ student.expiry_date|date:'Y-m-d' }}";
+        var overallLabel = document.getElementById("expiry-progress-label");
+        var overallPercent = document.getElementById("expiry-percent");
+        var overallBar = document.getElementById("expiry-progress-bar");
+        
+        if (overallLabel && overallPercent && overallBar) {
+            updateProgressBar(overallRegDateStr, overallExpDateStr, overallLabel, overallPercent, overallBar);
+        }
+        
+        // 2. Calculate and render progress for each individual course enrollment
+        var courseLabels = document.querySelectorAll(".course-expiry-label");
+        courseLabels.forEach(function(label) {
+            var reg = label.getAttribute("data-reg");
+            var exp = label.getAttribute("data-exp");
+            
+            // Find companion elements in the card structure
+            var parent = label.closest(".mb-1");
+            var percentLabel = parent ? parent.querySelector(".course-expiry-percent") : null;
+            var container = parent ? parent.nextElementSibling : null;
+            var progressBar = container ? container.querySelector(".course-expiry-bar") : null;
+            
+            if (percentLabel && progressBar) {
+                updateProgressBar(reg, exp, label, percentLabel, progressBar);
+            }
+        });
+    });
+</script>
+{% endblock %}

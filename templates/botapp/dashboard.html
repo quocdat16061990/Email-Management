@@ -1,0 +1,572 @@
+{% extends "botapp/base.html" %}
+
+{% block title %}Bảng điều khiển | {{ company_name }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    @media (min-width: 768px) {
+        .table-responsive {
+            overflow: visible !important;
+        }
+    }
+    .table-responsive {
+        min-height: 250px;
+    }
+    tbody tr[data-student-id] {
+        cursor: pointer;
+    }
+    .input-icon {
+        position: relative;
+    }
+    .input-icon-addon {
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 2.5rem;
+        pointer-events: none;
+        color: #626976;
+        z-index: 10;
+    }
+    .input-icon .form-control {
+        padding-left: 2.5rem !important;
+        padding-right: 0.75rem !important;
+        transition: all 0.2s ease;
+        border-radius: 8px;
+        height: 38px;
+    }
+    .input-icon .form-control:focus {
+        border-color: #a855f7 !important;
+        box-shadow: 0 0 0 0.25rem rgba(168, 85, 247, 0.15) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row row-cards">
+    <!-- Left Column: Recent Students list (9 columns) -->
+    <div class="col-lg-9">
+        <div class="card">
+            <div class="card-header d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+                <div>
+                    <h3 class="card-title">Danh sách học viên</h3>
+                    <p class="card-subtitle text-secondary m-0">Quản lý học viên trong hệ thống. Tick vào ô chọn bên trái để kích hoạt nút Chỉnh sửa.</p>
+                </div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                    <form method="get" action="" class="m-0 d-flex gap-2">
+                        <div class="input-icon">
+                            <span class="input-icon-addon">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                            </span>
+                            <input type="text" name="q" class="form-control" placeholder="Tìm kiếm học viên..." value="{{ query|default:'' }}" style="min-width: 350px;">
+                        </div>
+                        {% if query %}
+                            <a href="{% url 'dashboard' %}" class="btn btn-outline-secondary btn-icon" title="Xóa tìm kiếm">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+                            </a>
+                        {% endif %}
+                    </form>
+                    <button id="edit-selected-btn" class="btn btn-outline-secondary" disabled onclick="editSelectedStudent()">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                        Chỉnh sửa
+                    </button>
+                    <button id="sync-students-btn" class="btn btn-success" onclick="triggerSyncStudents()">
+                        <span id="sync-btn-spinner" class="spinner-border spinner-border-sm me-2 d-none" role="status" aria-hidden="true"></span>
+                        <svg id="sync-btn-icon" xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                        <span id="sync-btn-text">Đồng bộ từ Voomly</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-vcenter card-table table-striped text-nowrap">
+                    <thead>
+                        <tr>
+                            <th class="w-1">Tick</th>
+                            <th>Họ Tên</th>
+                            <th>Email</th>
+                            <th>Số Điện Thoại</th>
+                            <th>Khóa Học</th>
+                            <th>Trạng Thái</th>
+                            <th class="w-1">Hành Động</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for customer in customers %}
+                            <tr data-student-id="{{ customer.id }}">
+                                <td>
+                                    <input class="form-check-input m-0 align-middle student-select-checkbox" type="checkbox" value="{{ customer.id }}" data-student-id="{{ customer.id }}">
+                                </td>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        {% if customer.full_name %}
+                                            <span class="avatar avatar-sm bg-primary-lt me-2 font-weight-bold">{{ customer.full_name|slice:":2"|upper }}</span>
+                                        {% else %}
+                                            <span class="avatar avatar-sm bg-secondary-lt me-2 font-weight-bold">HV</span>
+                                        {% endif %}
+                                        <span class="font-weight-medium text-dark">{{ customer.full_name|default:"Chưa cập nhật" }}</span>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="text-secondary">{{ customer.customer_email }}</span>
+                                </td>
+                                <td>
+                                    <span class="text-secondary">{{ customer.phone_number|default:"Chưa cập nhật" }}</span>
+                                </td>
+                                <td>
+                                    <div class="d-flex flex-wrap gap-1 align-items-center">
+                                        {% with courses=customer.courses.all %}
+                                            {% for course in courses|slice:":2" %}
+                                                <span class="badge bg-purple-lt">{{ course.name }}</span>
+                                            {% endfor %}
+                                            {% if courses|length > 2 %}
+                                                <div class="dropdown d-inline-block">
+                                                    <a href="#" class="badge bg-indigo-lt dropdown-toggle text-decoration-none" data-bs-toggle="dropdown" aria-expanded="false" onclick="event.stopPropagation();">
+                                                        +{{ courses|length|add:"-2" }} khóa học
+                                                    </a>
+                                                    <div class="dropdown-menu dropdown-menu-start p-2" style="max-height: 250px; overflow-y: auto; width: max-content; min-width: 240px; box-shadow: 0 10px 20px rgba(0,0,0,0.15);" onclick="event.stopPropagation();">
+                                                        <div class="text-secondary small font-weight-bold mb-2 px-1">Danh sách khóa học ({{ courses|length }}):</div>
+                                                        <div class="d-flex flex-column gap-1">
+                                                            {% for course in courses %}
+                                                                <div class="px-2 py-1 bg-purple-lt rounded small text-dark font-weight-medium" style="white-space: normal;">{{ course.name }}</div>
+                                                            {% endfor %}
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            {% endif %}
+                                            {% if not courses %}
+                                                <span class="text-secondary small italic">Chưa gán</span>
+                                            {% endif %}
+                                        {% endwith %}
+                                    </div>
+                                </td>
+                                <td>
+                                    <div>
+                                        {% if customer.status == 'ACTIVE' %}
+                                            <span class="badge bg-success-lt">Đang hoạt động</span>
+                                        {% elif customer.status == 'PENDING' %}
+                                            <span class="badge bg-warning-lt">Chờ xử lý</span>
+                                        {% else %}
+                                            <span class="badge bg-danger-lt">Đã hết hạn</span>
+                                        {% endif %}
+                                        <div class="text-secondary small mt-1" style="font-size: 0.75rem;">Hết hạn: {{ customer.expiry_date|default:"-" }}</div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm dropdown-toggle align-text-top" data-bs-toggle="dropdown">Hành động</button>
+                                        <div class="dropdown-menu dropdown-menu-end">
+                                            <a class="dropdown-item edit-row-btn disabled" style="pointer-events: none; opacity: 0.5;" href="javascript:void(0);" onclick="openEditStudentModal('{{ customer.id }}')">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline me-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                                                Chỉnh sửa
+                                            </a>
+                                            <a class="dropdown-item text-danger" href="{% url 'dashboard' %}?delete={{ customer.id }}" onclick="return confirm('Bạn có chắc chắn muốn xóa học viên {{ customer.customer_email }} không?');">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="icon icon-inline me-1" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+                                                Xóa học viên
+                                            </a>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="7" class="text-center py-4 text-secondary italic">Chưa có học viên nào được lưu.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="card-footer d-flex align-items-center justify-content-between">
+                <p class="m-0 text-secondary">
+                    Hiển thị <strong>{{ customers.start_index }}</strong> - <strong>{{ customers.end_index }}</strong> trong tổng số <strong>{{ customers.paginator.count }}</strong> học viên
+                </p>
+                <ul class="pagination m-0 ms-auto">
+                    {% if customers.has_previous %}
+                        <li class="page-item"><a class="page-link" href="?page={{ customers.previous_page_number }}{% if query %}&q={{ query }}{% endif %}">Trước</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true">Trước</a></li>
+                    {% endif %}
+                    
+                    {% for num in customers.paginator.page_range %}
+                        {% if customers.number == num %}
+                            <li class="page-item active"><a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}">{{ num }}</a></li>
+                        {% elif num > customers.number|add:-3 and num < customers.number|add:3 %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}">{{ num }}</a></li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if customers.has_next %}
+                        <li class="page-item"><a class="page-link" href="?page={{ customers.next_page_number }}{% if query %}&q={{ query }}{% endif %}">Sau</a></li>
+                    {% else %}
+                        <li class="page-item disabled"><a class="page-link" href="#" tabindex="-1" aria-disabled="true">Sau</a></li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Operator Panel & Telegram Guide Info (3 columns) -->
+    <div class="col-lg-3">
+        <!-- Operator Card -->
+        <div class="card mb-3">
+            <div class="card-body py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <div class="text-secondary small">Đang đăng nhập</div>
+                    <div class="font-weight-medium text-dark">{{ operator_email }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Telegram Query Help Card -->
+        <div class="card bg-blue-lt">
+            <div class="card-body">
+                <h3 class="card-title text-blue">Tra cứu qua Telegram</h3>
+                <p class="text-secondary small">Sau khi lưu học viên, bạn có thể hướng dẫn học viên liên kết và lấy mã OTP trên Telegram qua các cú pháp lệnh sau:</p>
+                <pre class="bg-dark text-light p-2 rounded" style="font-family: Consolas, Monaco, monospace; font-size: 0.8rem; margin: 0; overflow-x: auto;">/lookup email@example.com
+</pre>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Form for Student CRUD -->
+<div class="modal modal-blur fade" id="modal-student" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered" role="document">
+        <div class="modal-content">
+            <form id="student-form" method="post" action="{% if edit_mode %}{% url 'dashboard' %}?edit={{ edit_customer.id }}{% else %}{% url 'dashboard' %}{% endif %}" novalidate>
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title">
+                        {% if edit_mode %}
+                            Chỉnh sửa học viên: {{ edit_customer.customer_email }}
+                        {% else %}
+                            Thêm học viên mới
+                        {% endif %}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger">
+                            {{ form.non_field_errors.0 }}
+                        </div>
+                    {% endif %}
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.full_name.id_for_label }}" class="form-label required">{{ form.full_name.label }}</label>
+                            {{ form.full_name }}
+                            {% if form.full_name.errors %}
+                                <div class="invalid-feedback d-block">{{ form.full_name.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="{{ form.customer_email.id_for_label }}" class="form-label required">{{ form.customer_email.label }}</label>
+                            {{ form.customer_email }}
+                            {% if form.customer_email.errors %}
+                                <div class="invalid-feedback d-block">{{ form.customer_email.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-12 mb-3">
+                            <label for="{{ form.phone_number.id_for_label }}" class="form-label required">{{ form.phone_number.label }}</label>
+                            {{ form.phone_number }}
+                            {% if form.phone_number.errors %}
+                                <div class="invalid-feedback d-block">{{ form.phone_number.errors|join:", " }}</div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label font-weight-bold">Khóa học đăng ký và thời hạn</label>
+                        <div class="courses-settings-list" style="max-height: 350px; overflow-y: auto; border: 1px solid rgba(226, 232, 240, 0.8); padding: 12px; border-radius: 12px; background: #f8fafc;">
+                            {% for choice in form.existing_courses %}
+                                <div class="card border shadow-none mb-2 course-card-panel" data-course-id="{{ choice.data.value }}" style="border-radius: 12px !important; border: 1px solid rgba(226, 232, 240, 0.8) !important; background: #ffffff !important; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02) !important;">
+                                    <div class="card-body p-3">
+                                        <div class="form-check m-0 d-flex align-items-center">
+                                            <input class="form-check-input course-check me-2" type="checkbox" name="existing_courses" value="{{ choice.data.value }}" id="cb-course-{{ choice.data.value }}" style="cursor: pointer; width: 16px; height: 16px; margin: 0;">
+                                            <label class="form-check-label font-weight-bold cursor-pointer m-0 text-dark" for="cb-course-{{ choice.data.value }}">
+                                                {{ choice.choice_label }}
+                                            </label>
+                                        </div>
+                                        
+                                        <!-- Collapsible Container for Course Settings -->
+                                        <div class="course-settings-container mt-3 pt-3 border-top d-none" id="settings-course-{{ choice.data.value }}">
+                                            <div class="row g-2">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small text-secondary m-0 mb-1">Ngày đăng ký</label>
+                                                    <input type="date" name="course_{{ choice.data.value }}_registration_date" class="form-control form-control-sm course-reg-date" style="border-radius: 6px !important; padding: 0.25rem 0.5rem !important; font-size: 0.8rem;">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small text-secondary m-0 mb-1">Ngày hết hạn</label>
+                                                    <input type="date" name="course_{{ choice.data.value }}_expiry_date" class="form-control form-control-sm course-exp-date" style="border-radius: 6px !important; padding: 0.25rem 0.5rem !important; font-size: 0.8rem;">
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small text-secondary m-0 mb-1">Trạng thái</label>
+                                                    <select name="course_{{ choice.data.value }}_status" class="form-select form-select-sm course-status" style="border-radius: 6px !important; padding: 0.25rem 0.5rem !important; font-size: 0.8rem;">
+                                                        <option value="ACTIVE">Đang hoạt động</option>
+                                                        <option value="PENDING">Chờ xử lý</option>
+                                                        <option value="EXPIRED">Đã hết hạn</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        {% if form.existing_courses.errors %}
+                            <div class="invalid-feedback d-block">{{ form.existing_courses.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="{{ form.extra_courses.id_for_label }}" class="form-label">{{ form.extra_courses.label }}</label>
+                        {{ form.extra_courses }}
+                        <span class="form-hint text-secondary">{{ form.extra_courses.help_text }}</span>
+                        {% if form.extra_courses.errors %}
+                            <div class="invalid-feedback d-block">{{ form.extra_courses.errors|join:", " }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-link link-secondary" data-bs-dismiss="modal">Hủy bỏ</button>
+                    <button type="submit" class="btn btn-primary ms-auto">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        {% if edit_mode %}Cập nhật học viên{% else %}Lưu học viên{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        var modalEl = document.getElementById('modal-student');
+        var modalObj = new bootstrap.Modal(modalEl, {
+            backdrop: 'static',
+            keyboard: false
+        });
+        
+        function updateEditButtonsState() {
+            var checkedCheckbox = document.querySelector('.student-select-checkbox:checked');
+            var editHeaderBtn = document.getElementById('edit-selected-btn');
+            
+            if (checkedCheckbox) {
+                editHeaderBtn.removeAttribute('disabled');
+                editHeaderBtn.classList.remove('btn-outline-secondary');
+                editHeaderBtn.classList.add('btn-primary');
+            } else {
+                editHeaderBtn.setAttribute('disabled', 'true');
+                editHeaderBtn.classList.remove('btn-primary');
+                editHeaderBtn.classList.add('btn-outline-secondary');
+            }
+            
+            document.querySelectorAll('.student-select-checkbox').forEach(function(checkbox) {
+                var row = checkbox.closest('tr');
+                var editRowBtn = row.querySelector('.edit-row-btn');
+                if (editRowBtn) {
+                    if (checkbox.checked) {
+                        editRowBtn.classList.remove('disabled');
+                        editRowBtn.style.pointerEvents = 'auto';
+                        editRowBtn.style.opacity = '1';
+                    } else {
+                        editRowBtn.classList.add('disabled');
+                        editRowBtn.style.pointerEvents = 'none';
+                        editRowBtn.style.opacity = '0.5';
+                    }
+                }
+            });
+        }
+
+        // Listen to checkbox status changes in the table
+        document.querySelectorAll('.student-select-checkbox').forEach(function(checkbox) {
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    // Uncheck all other checkboxes
+                    document.querySelectorAll('.student-select-checkbox').forEach(function(other) {
+                        if (other !== checkbox) other.checked = false;
+                    });
+                }
+                updateEditButtonsState();
+            });
+        });
+
+        // Uncheck all checkboxes when modal is closed
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            document.querySelectorAll('.student-select-checkbox').forEach(function(c) {
+                c.checked = false;
+            });
+            updateEditButtonsState();
+        });
+
+        // Setup course panel toggle logic
+        document.querySelectorAll('.course-card-panel').forEach(function(panel) {
+            var checkbox = panel.querySelector('.course-check');
+            var settingsContainer = panel.querySelector('.course-settings-container');
+            var regDateInput = panel.querySelector('.course-reg-date');
+            var expDateInput = panel.querySelector('.course-exp-date');
+            
+            function updatePanelState() {
+                if (checkbox.checked) {
+                    settingsContainer.classList.remove('d-none');
+                    settingsContainer.querySelectorAll('input, select').forEach(function(el) {
+                        el.removeAttribute('disabled');
+                    });
+                    
+                    if (!regDateInput.value) {
+                        var today = new Date().toISOString().split('T')[0];
+                        regDateInput.value = today;
+                    }
+                    if (!expDateInput.value) {
+                        var regDate = new Date(regDateInput.value || new Date());
+                        var expDate = new Date(regDate.setFullYear(regDate.getFullYear() + 1));
+                        expDateInput.value = expDate.toISOString().split('T')[0];
+                    }
+                } else {
+                    settingsContainer.classList.add('d-none');
+                    settingsContainer.querySelectorAll('input, select').forEach(function(el) {
+                        el.setAttribute('disabled', 'true');
+                    });
+                }
+            }
+            
+            checkbox.addEventListener('change', updatePanelState);
+            
+            regDateInput.addEventListener('change', function() {
+                if (regDateInput.value) {
+                    var regDate = new Date(regDateInput.value);
+                    var expDate = new Date(regDate.setFullYear(regDate.getFullYear() + 1));
+                    expDateInput.value = expDate.toISOString().split('T')[0];
+                }
+            });
+            
+            // Initial call to set state
+            updatePanelState();
+        });
+
+        window.editSelectedStudent = function() {
+            var checkedCheckbox = document.querySelector('.student-select-checkbox:checked');
+            if (checkedCheckbox) {
+                openEditStudentModal(checkedCheckbox.value);
+            }
+        };
+
+        window.openEditStudentModal = function(studentId) {
+            document.querySelectorAll('.student-select-checkbox').forEach(function(c) {
+                c.checked = (c.getAttribute('data-student-id') == studentId);
+            });
+            updateEditButtonsState();
+            
+            // Load details via AJAX
+            fetch(`/dashboard/student-detail/?id=${studentId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert(data.error);
+                        return;
+                    }
+                    
+                    var form = document.getElementById('student-form');
+                    form.action = `{% url 'dashboard' %}?edit=${studentId}`;
+                    modalEl.querySelector('.modal-title').textContent = `Chỉnh sửa học viên: ${data.customer_email}`;
+                    modalEl.querySelector('button[type="submit"]').innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> Cập nhật học viên';
+                    
+                    form.querySelector('[name="full_name"]').value = data.full_name || "";
+                    form.querySelector('[name="customer_email"]').value = data.customer_email || "";
+                    form.querySelector('[name="phone_number"]').value = data.phone_number || "";
+                    
+                    // Reset all panels first
+                    form.querySelectorAll('.course-card-panel').forEach(function(panel) {
+                        var cb = panel.querySelector('.course-check');
+                        cb.checked = false;
+                        panel.querySelector('.course-reg-date').value = "";
+                        panel.querySelector('.course-exp-date').value = "";
+                        panel.querySelector('.course-status').value = "ACTIVE";
+                        
+                        var settingsContainer = panel.querySelector('.course-settings-container');
+                        settingsContainer.classList.add('d-none');
+                        settingsContainer.querySelectorAll('input, select').forEach(function(el) {
+                            el.setAttribute('disabled', 'true');
+                        });
+                    });
+                    
+                    // Populate panels from enrollment data
+                    if (data.enrollments && data.enrollments.length > 0) {
+                        data.enrollments.forEach(function(enroll) {
+                            var panel = form.querySelector(`.course-card-panel[data-course-id="${enroll.course_id}"]`);
+                            if (panel) {
+                                var cb = panel.querySelector('.course-check');
+                                cb.checked = true;
+                                
+                                var settingsContainer = panel.querySelector('.course-settings-container');
+                                settingsContainer.classList.remove('d-none');
+                                settingsContainer.querySelectorAll('input, select').forEach(function(el) {
+                                    el.removeAttribute('disabled');
+                                });
+                                
+                                panel.querySelector('.course-reg-date').value = enroll.registration_date || "";
+                                panel.querySelector('.course-exp-date').value = enroll.expiry_date || "";
+                                panel.querySelector('.course-status').value = enroll.status || "ACTIVE";
+                            }
+                        });
+                    }
+                    
+                    form.querySelector('[name="extra_courses"]').value = "";
+                    
+                    modalObj.show();
+                })
+                .catch(err => {
+                    console.error("Error loading student details:", err);
+                    alert("Không thể tải thông tin học viên. Vui lòng thử lại!");
+                });
+        };
+
+        // Handle row click navigation to detail page
+        document.querySelectorAll('tbody tr[data-student-id]').forEach(function(row) {
+            row.addEventListener('click', function(e) {
+                if (e.target.closest('.student-select-checkbox') || 
+                    e.target.closest('.dropdown') || 
+                    e.target.closest('a') || 
+                    e.target.closest('button')) {
+                    return;
+                }
+                var studentId = this.getAttribute('data-student-id');
+                if (studentId) {
+                    window.location.href = `/dashboard/student/${studentId}/`;
+                }
+            });
+        });
+
+        window.triggerSyncStudents = function() {
+            var syncBtn = document.getElementById('sync-students-btn');
+            var spinner = document.getElementById('sync-btn-spinner');
+            var icon = document.getElementById('sync-btn-icon');
+            var text = document.getElementById('sync-btn-text');
+            
+            syncBtn.setAttribute('disabled', 'true');
+            spinner.classList.remove('d-none');
+            icon.classList.add('d-none');
+            text.textContent = 'Đang đồng bộ...';
+            
+            window.location.href = "{% url 'sync_students' %}";
+        };
+
+        // Re-evaluate button state on load
+        updateEditButtonsState();
+
+        var editMode = {% if edit_mode %}true{% else %}false{% endif %};
+        var hasErrors = {% if form.errors %}true{% else %}false{% endif %};
+        if (editMode || hasErrors) {
+            modalObj.show();
+        }
+    });
+</script>
+{% endblock %}
