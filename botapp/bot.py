@@ -1,8 +1,10 @@
 import logging
 import time
+from datetime import datetime
 
 from asgiref.sync import sync_to_async
 from django.conf import settings
+from django.db.models import Prefetch
 from telegram import Update
 from telegram.ext import (
     Application,
@@ -14,7 +16,12 @@ from telegram.ext import (
     filters,
 )
 
-from .keyboards import build_fetch_otp_keyboard, build_restart_keyboard, build_start_keyboard
+from .keyboards import (
+    course_list_keyboard,
+    enrollment_keyboard,
+    main_menu_keyboard,
+    restart_keyboard,
+)
 from .services import (
     create_or_update_customer,
     extract_otp_from_openai_email,
@@ -28,27 +35,186 @@ from .services import (
 logger = logging.getLogger(__name__)
 
 ASK_EMAIL = 0
+
 ENROLLMENT_STATUS_LABELS = {
-    "ACTIVE": "Đang hoạt động",
-    "PENDING": "Chờ xử lý",
-    "EXPIRED": "Đã hết hạn",
+    "ACTIVE": "✅ Đang hoạt động",
+    "PENDING": "⏳ Chờ xử lý",
+    "EXPIRED": "❌ Đã hết hạn",
 }
 
 
+# ─── /start ──────────────────────────────────────────────────────────────────
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
+
+    # Check if user already linked
+    chat_id = update.effective_chat.id
+    customer = await _find_customer_by_chat_id(chat_id)
+
+    if customer:
+        enrollments = await sync_to_async(list)(customer.enrollments.select_related("course").all())
+        course_count = len(enrollments)
+        await update.message.reply_text(
+            f"🎓 *Xin chào {customer.full_name or 'bạn'}!*\n\n"
+            f"📧 `{customer.customer_email}`\n"
+            f"📚 *{course_count}* khóa học đang theo dõi\n\n"
+            f"Tôi có thể giúp gì cho bạn hôm nay? 👇",
+            reply_markup=main_menu_keyboard(),
+            parse_mode="Markdown",
+        )
+        return ConversationHandler.END
+
     await update.message.reply_text(
-        "Xin chào. Bấm /start để bắt đầu.\n\nVui lòng nhập email của bạn.",
-        reply_markup=build_start_keyboard(),
+        "🎓 *Chào mừng bạn đến với Hệ thống Quản lý Học tập!*\n\n"
+        "🤖 Tôi là trợ lý *Thu Nhi* của *Anh Lập Trình*, có thể giúp bạn:\n"
+        "• 🔑 Lấy mã OTP OpenAI từ Gmail tự động\n"
+        "• 📚 Xem thông tin khóa học đã đăng ký\n"
+        "• 📋 Kiểm tra tình trạng học tập\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "Để bắt đầu, vui lòng nhập *email* của bạn bên dưới.\n"
+        "Ví dụ: `email@example.com`",
+        reply_markup=restart_keyboard(),
+        parse_mode="Markdown",
     )
     return ASK_EMAIL
 
+
+# ─── /me ─────────────────────────────────────────────────────────────────────
+
+async def my_info(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    customer = await _find_customer_by_chat_id(chat_id)
+    if not customer:
+        await _reply_not_linked(update)
+        return
+
+    enrollments = await sync_to_async(list)(customer.enrollments.select_related("course").all())
+    course_count = len(enrollments)
+    telegram_status = "✅ Đã liên kết" if customer.telegram_chat_id else "❌ Chưa liên kết"
+    status_vi = ENROLLMENT_STATUS_LABELS.get(customer.status, customer.status)
+
+    text = (
+        f"👤 *Thông tin của bạn*\n\n"
+        f"📧 *Email:* `{customer.customer_email}`\n"
+        f"👤 *Họ tên:* {customer.full_name or 'Chưa cập nhật'}\n"
+        f"📞 *SĐT:* {customer.phone_number or 'Chưa cập nhật'}\n"
+        f"🔄 *Trạng thái:* {status_vi}\n"
+        f"🤖 *Telegram:* {telegram_status}\n"
+        f"📚 *Tổng khóa học:* {course_count}"
+    )
+
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+    else:
+        await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+
+
+# ─── /courses ────────────────────────────────────────────────────────────────
+
+async def my_courses(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    customer = await _find_customer_by_chat_id(chat_id)
+    if not customer:
+        await _reply_not_linked(update)
+        return
+
+    enrollments = await sync_to_async(list)(customer.enrollments.select_related("course").all())
+    if not enrollments:
+        text = "📚 Bạn chưa đăng ký khóa học nào."
+        if update.callback_query:
+            await update.callback_query.answer()
+            await update.callback_query.edit_message_text(text, reply_markup=main_menu_keyboard())
+        else:
+            await update.message.reply_text(text, reply_markup=main_menu_keyboard())
+        return
+
+    course_data = [
+        (f"{e.course.name}", e.course_id)
+        for e in enrollments
+    ]
+    page = 0
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(
+            "📚 *Khóa học của bạn:*\nChọn khóa học để xem chi tiết.",
+            reply_markup=course_list_keyboard(course_data, page),
+            parse_mode="Markdown",
+        )
+    else:
+        await update.message.reply_text(
+            "📚 *Khóa học của bạn:*\nChọn khóa học để xem chi tiết.",
+            reply_markup=course_list_keyboard(course_data, page),
+            parse_mode="Markdown",
+        )
+
+
+# ─── Course detail ───────────────────────────────────────────────────────────
+
+async def course_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    course_id = int(query.data.split("_")[1])
+
+    from .models import Customer, Enrollment
+    chat_id = update.effective_chat.id
+    customer = await sync_to_async(Customer.objects.filter(telegram_chat_id=chat_id).first)()
+    if not customer:
+        await query.edit_message_text("Bạn chưa liên kết tài khoản.", reply_markup=restart_keyboard())
+        return
+
+    enrollment = await sync_to_async(
+        Enrollment.objects.select_related("course").filter(customer=customer, course_id=course_id).first
+    )()
+    if not enrollment:
+        await query.answer("Không tìm thấy khóa học này.", show_alert=True)
+        return
+
+    course = enrollment.course
+    stud_count = await sync_to_async(Enrollment.objects.filter(course=course).count)()
+
+    remaining = ""
+    if enrollment.expiry_date:
+        days = (enrollment.expiry_date - datetime.now().date()).days
+        if days > 0:
+            remaining = f"⏳ Còn *{days}* ngày"
+        elif days == 0:
+            remaining = "⏳ *Hết hạn hôm nay*"
+        else:
+            remaining = f"❌ Quá hạn *{abs(days)}* ngày"
+
+    text = (
+        f"📖 *{course.name}*\n\n"
+        f"📝 *Mô tả:* {course.description or 'Chưa có mô tả'}\n"
+        f"📅 *Đăng ký:* {enrollment.registration_date or 'N/A'}\n"
+        f"📅 *Hết hạn:* {enrollment.expiry_date or 'N/A'}\n"
+        f"📊 *Trạng thái:* {ENROLLMENT_STATUS_LABELS.get(enrollment.status, enrollment.status)}\n"
+        f"{remaining}\n"
+        f"👥 *Tổng học viên:* {stud_count}"
+    )
+
+    if course.web_link:
+        text += f"\n\n🔗 [Website khóa học]({course.web_link})"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=enrollment_keyboard(),
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
+
+
+# ─── Handle email input ─────────────────────────────────────────────────────
 
 async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     email_text = update.message.text.strip()
 
     if not is_valid_email(email_text):
-        await update.message.reply_text("Email không hợp lệ. Vui lòng nhập lại email của bạn.")
+        await update.message.reply_text(
+            "❌ Email không hợp lệ. Vui lòng nhập lại email của bạn.",
+            reply_markup=restart_keyboard(),
+        )
         return ASK_EMAIL
 
     try:
@@ -57,30 +223,34 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
     except Exception:
         logger.exception("Không tạo được phiên customer.")
         await update.message.reply_text(
-            "Không khởi tạo được phiên làm việc lúc này. Vui lòng thử lại sau.",
-            reply_markup=build_restart_keyboard(),
+            "❌ Không khởi tạo được phiên làm việc. Vui lòng thử lại sau.",
+            reply_markup=restart_keyboard(),
         )
         return ConversationHandler.END
 
     context.user_data["email"] = email_text
     context.user_data["otp_session_started_at"] = time.time()
 
-    assigned_courses = ", ".join(course.name for course in customer.courses.all()) or "Chưa có khóa học nào."
-    available_course_lines = "\n".join(
-        f"{index}. {course.name}" for index, course in enumerate(available_courses, start=1)
-    )
-    if not available_course_lines:
-        available_course_lines = "Hệ thống hiện chưa có khóa học nào."
+    courses_list = await sync_to_async(list)(customer.courses.all())
+    assigned_courses = ", ".join(course.name for course in courses_list) or "Chưa có khóa học nào."
 
     await update.message.reply_text(
-        "Email hợp lệ.\n"
-        f"Các khóa học hiện có:\n{available_course_lines}\n\n"
-        f"Khóa học đã gán cho bạn: {assigned_courses}\n\n"
-        "Bây giờ hãy bấm gửi OTP trên trang OpenAI, sau đó bấm nút bên dưới để tôi lấy OTP từ Gmail.",
-        reply_markup=build_fetch_otp_keyboard(),
+        f"✅ *Xác nhận email thành công!*\n\n"
+        f"📧 `{email_text}`\n"
+        f"👤 {customer.full_name or 'Chưa cập nhật'}\n"
+        f"📞 {customer.phone_number or 'Chưa có SĐT'}\n\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"📚 *Khóa học của bạn:*\n{assigned_courses}\n\n"
+        f"━━━━━━━━━━━━━━━━━━\n"
+        f"👉 *Bước tiếp theo:* Truy cập trang OpenAI, gửi mã OTP, "
+        f"sau đó bấm nút \"🔑 Lấy OTP\" bên dưới để tôi tự động lấy mã từ Gmail cho bạn.",
+        reply_markup=enrollment_keyboard(),
+        parse_mode="Markdown",
     )
     return ConversationHandler.END
 
+
+# ─── Fetch OTP ───────────────────────────────────────────────────────────────
 
 async def fetch_openai_otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
@@ -88,14 +258,21 @@ async def fetch_openai_otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     email_text = context.user_data.get("email")
 
     if not email_text:
-        context.user_data.clear()
-        await query.message.reply_text(
-            "Phiên xác thực không còn hợp lệ. Vui lòng bấm /start để thử lại.",
-            reply_markup=build_start_keyboard(),
-        )
-        return
+        # Try to get email from DB
+        chat_id = update.effective_chat.id
+        customer = await _find_customer_by_chat_id(chat_id)
+        if customer:
+            email_text = customer.customer_email
+            context.user_data["email"] = email_text
+        else:
+            context.user_data.clear()
+            await query.edit_message_text(
+                "❌ Phiên xác thực không còn hợp lệ. Vui lòng bấm /start để thử lại.",
+                reply_markup=restart_keyboard(),
+            )
+            return
 
-    await query.message.reply_text("Đang quét Gmail để tìm OTP OpenAI...")
+    await query.edit_message_text("🔍 *Đang quét Gmail để tìm OTP OpenAI...*\nVui lòng đợi trong giây lát.", parse_mode="Markdown")
     try:
         otp_code = await sync_to_async(extract_otp_from_openai_email)(
             timeout_seconds=settings.OTP_TTL_MINUTES * 60,
@@ -104,34 +281,182 @@ async def fetch_openai_otp(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
     except Exception:
         logger.exception("Không đọc được Gmail OpenAI OTP.")
-        await query.message.reply_text(
-            "Không đọc được Gmail lúc này. Kiểm tra lại EMAIL_ACCOUNT và APP_PASSWORD.",
-            reply_markup=build_restart_keyboard(),
+        await query.edit_message_text(
+            "❌ Không đọc được Gmail lúc này. Kiểm tra lại EMAIL_ACCOUNT và APP_PASSWORD.",
+            reply_markup=restart_keyboard(),
         )
         return
 
     if not otp_code:
-        await query.message.reply_text(
-            "Không tìm thấy OTP OpenAI trong vòng 1 phút. Hãy bấm gửi OTP bên OpenAI rồi thử lại.",
-            reply_markup=build_fetch_otp_keyboard(),
+        await query.edit_message_text(
+            "⏳ Không tìm thấy OTP OpenAI trong vòng 1 phút.\n"
+            "Hãy gửi OTP bên OpenAI rồi bấm nút bên dưới để thử lại.",
+            reply_markup=enrollment_keyboard(),
         )
         return
 
     await sync_to_async(mark_customer_otp_received)(query.message.chat_id, email_text)
-    await query.message.reply_text(
-        f"OTP OpenAI của bạn là: {otp_code}\nXong rồi. Cảm ơn bạn.",
-        reply_markup=build_restart_keyboard(),
+    await query.edit_message_text(
+        f"✅ *Tìm thấy OTP!*\n\n"
+        f"🔑 Mã OTP của bạn là: `{otp_code}`\n\n"
+        f"Xong rồi! Cảm ơn bạn.",
+        reply_markup=main_menu_keyboard(),
+        parse_mode="Markdown",
     )
     context.user_data.clear()
 
+
+# ─── /lookup ─────────────────────────────────────────────────────────────────
+
+async def lookup_customer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    keyword = " ".join(context.args).strip()
+    if not keyword:
+        await update.message.reply_text(
+            "Cú pháp: /lookup `<email>` hoặc `<số điện thoại>`\n"
+            "Ví dụ: /lookup email@example.com",
+            parse_mode="Markdown",
+        )
+        return
+
+    customer = await sync_to_async(lookup_customer_by_email)(keyword)
+    if not customer:
+        # Try lookup by phone
+        from .services import lookup_customers
+        results = await sync_to_async(lookup_customers)(keyword)
+        if results:
+            customer = results[0]
+
+    if not customer:
+        await update.message.reply_text("❌ Không tìm thấy học viên nào.")
+        return
+
+    enrollments = await sync_to_async(list)(customer.enrollments.select_related("course").all())
+    course_block = "\n".join(
+        f"• {e.course.name} — {ENROLLMENT_STATUS_LABELS.get(e.status, e.status)}"
+        for e in enrollments
+    ) if enrollments else "Chưa có khóa học"
+
+    telegram_value = customer.telegram_chat_id if customer.telegram_chat_id else "❌ Chưa liên kết"
+    status_vi = ENROLLMENT_STATUS_LABELS.get(customer.status, customer.status)
+
+    if customer.telegram_chat_id:
+        telegram_value = f"✅ `{customer.telegram_chat_id}`"
+
+    text = (
+        f"👤 *Kết quả tra cứu*\n\n"
+        f"📧 *Email:* `{customer.customer_email}`\n"
+        f"👤 *Họ tên:* {customer.full_name or 'Chưa cập nhật'}\n"
+        f"📞 *SĐT:* {customer.phone_number or 'Chưa cập nhật'}\n"
+        f"📊 *Trạng thái:* {status_vi}\n"
+        f"🤖 *Telegram:* {telegram_value}\n\n"
+        f"📚 *Khóa học:*\n{course_block}"
+    )
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+# ─── /help ────────────────────────────────────────────────────────────────────
+
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    text = (
+        "🎓 *Thu Nhi — Trợ lý Anh Lập Trình*\n\n"
+        "_Tôi giúp bạn lấy mã OTP OpenAI và quản lý khóa học._\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "*Các lệnh:*\n\n"
+        "🏠 /start — Bắt đầu hoặc liên kết tài khoản\n"
+        "👤 /me — Xem thông tin cá nhân\n"
+        "📚 /courses — Xem danh sách khóa học\n"
+        "🔑 /otp — Lấy mã OTP OpenAI nhanh\n"
+        "🔍 /lookup `<email>` — Tra cứu học viên\n"
+        "❓ /help — Hướng dẫn này\n\n"
+        "━━━━━━━━━━━━━━━━━━\n"
+        "_💡 Mẹo: Sau khi nhập email, bạn có thể dùng menu để thao tác nhanh hơn!_"
+    )
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+    else:
+        await update.message.reply_text(text, reply_markup=main_menu_keyboard(), parse_mode="Markdown")
+
+
+# ─── /otp ────────────────────────────────────────────────────────────────────
+
+async def otp_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    customer = await _find_customer_by_chat_id(chat_id)
+    if not customer:
+        await _reply_not_linked(update)
+        return
+
+    context.user_data["email"] = customer.customer_email
+    context.user_data["otp_session_started_at"] = time.time()
+    await update.message.reply_text(
+        "🔑 Gửi OTP trên trang OpenAI, sau đó bấm nút bên dưới để tôi lấy mã.",
+        reply_markup=enrollment_keyboard(),
+        parse_mode="Markdown",
+    )
+
+
+# ─── Main menu / back to menu ────────────────────────────────────────────────
+
+async def main_menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    chat_id = update.effective_chat.id
+    customer = await _find_customer_by_chat_id(chat_id)
+
+    if customer:
+        enrollments = await sync_to_async(list)(customer.enrollments.select_related("course").all())
+        course_count = len(enrollments)
+        await query.edit_message_text(
+            f"🎓 *Xin chào {customer.full_name or 'bạn'}!*\n\n"
+            f"📧 `{customer.customer_email}`\n"
+            f"📚 *{course_count}* khóa học đang theo dõi\n\n"
+            f"Tôi có thể giúp gì cho bạn hôm nay? 👇",
+            reply_markup=main_menu_keyboard(),
+            parse_mode="Markdown",
+        )
+    else:
+        await query.edit_message_text(
+            "👋 Bạn chưa liên kết tài khoản.\n\nGõ /start để bắt đầu.",
+            reply_markup=restart_keyboard(),
+        )
+
+
+# ─── Courses page callback ───────────────────────────────────────────────────
+
+async def courses_page_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    page = int(query.data.split("_")[2])
+
+    chat_id = update.effective_chat.id
+    customer = await _find_customer_by_chat_id(chat_id)
+    if not customer:
+        await query.edit_message_text("Bạn chưa liên kết tài khoản.", reply_markup=restart_keyboard())
+        return
+
+    enrollments = await sync_to_async(list)(customer.enrollments.select_related("course").all())
+    course_data = [(e.course.name, e.course_id) for e in enrollments]
+
+    await query.edit_message_text(
+        "📚 *Khóa học của bạn:*\nChọn khóa học để xem chi tiết.",
+        reply_markup=course_list_keyboard(course_data, page),
+        parse_mode="Markdown",
+    )
+
+
+# ─── Restart flow ────────────────────────────────────────────────────────────
 
 async def restart_flow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     query = update.callback_query
     await query.answer()
     context.user_data.clear()
-    await query.message.reply_text(
-        "Xin chào. Bấm /start để bắt đầu.\n\nVui lòng nhập email của bạn.",
-        reply_markup=build_start_keyboard(),
+    await query.edit_message_text(
+        "👋 *Xin chào!*\n\nVui lòng nhập *email* của bạn để bắt đầu.",
+        reply_markup=restart_keyboard(),
+        parse_mode="Markdown",
     )
     return ASK_EMAIL
 
@@ -139,57 +464,36 @@ async def restart_flow(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data.clear()
     await update.message.reply_text(
-        "Đã hủy phiên hiện tại. Bấm /start nếu muốn bắt đầu lại.",
-        reply_markup=build_start_keyboard(),
+        "Đã hủy. Gõ /start để bắt đầu lại.",
+        reply_markup=restart_keyboard(),
     )
     return ConversationHandler.END
 
 
-def _format_customer_summary(customer) -> str:
-    enrollments = list(customer.enrollments.all())
-    if enrollments:
-        course_block = "\n".join(
-            f"- {enroll.course.name} ({ENROLLMENT_STATUS_LABELS.get(enroll.status, enroll.status)})"
-            for enroll in enrollments
-        )
+# ─── Helpers ─────────────────────────────────────────────────────────────────
+
+async def _find_customer_by_chat_id(chat_id: int):
+    from .models import Customer
+    return await sync_to_async(Customer.objects.filter(telegram_chat_id=chat_id).first)()
+
+
+async def _reply_not_linked(update: Update) -> None:
+    text = "❌ Bạn chưa liên kết tài khoản Telegram.\n\nGõ /start và nhập email để liên kết."
+    if update.callback_query:
+        await update.callback_query.answer()
+        await update.callback_query.edit_message_text(text, reply_markup=restart_keyboard())
     else:
-        course_block = "Chưa có khóa học"
-
-    telegram_value = customer.telegram_chat_id if customer.telegram_chat_id is not None else "Chưa liên kết"
-    status_vi = ENROLLMENT_STATUS_LABELS.get(customer.status, customer.status)
-    return (
-        f"Email: {customer.customer_email}\n"
-        f"Họ tên: {customer.full_name or 'Chưa cập nhật'}\n"
-        f"Số điện thoại: {customer.phone_number or 'Chưa cập nhật'}\n"
-        f"Đang học:\n{course_block}\n"
-        f"Trạng thái: {status_vi}\n"
-        f"Telegram: {telegram_value}"
-    )
+        await update.message.reply_text(text, reply_markup=restart_keyboard())
 
 
-async def lookup_customer(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    keyword = " ".join(context.args).strip()
-    if not keyword:
-        await update.message.reply_text("Cú pháp: /lookup email@example.com")
-        return
-
-    if not is_valid_email(keyword):
-        await update.message.reply_text("Vui lòng nhập đúng email học viên. Ví dụ: /lookup email@example.com")
-        return
-
-    customer = await sync_to_async(lookup_customer_by_email)(keyword)
-    if not customer:
-        await update.message.reply_text("Không tìm thấy học viên với email này.")
-        return
-
-    await update.message.reply_text(_format_customer_summary(customer))
-
+# ─── Build application ──────────────────────────────────────────────────────
 
 def build_application() -> Application:
     if not settings.TELEGRAM_BOT_TOKEN:
         raise RuntimeError("TELEGRAM_BOT_TOKEN chưa được cấu hình trong .env")
 
     application = Application.builder().token(settings.TELEGRAM_BOT_TOKEN).build()
+
     conversation_handler = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={
@@ -200,10 +504,23 @@ def build_application() -> Application:
         per_user=True,
         per_message=False,
     )
+
     application.add_handler(conversation_handler)
+    application.add_handler(CommandHandler("me", my_info))
+    application.add_handler(CommandHandler("courses", my_courses))
     application.add_handler(CommandHandler("lookup", lookup_customer))
+    application.add_handler(CommandHandler("help", help_command))
+    application.add_handler(CommandHandler("otp", otp_command))
     application.add_handler(CallbackQueryHandler(restart_flow, pattern="^restart_flow$"))
     application.add_handler(CallbackQueryHandler(fetch_openai_otp, pattern="^fetch_openai_otp$"))
+    application.add_handler(CallbackQueryHandler(main_menu_callback, pattern="^main_menu$"))
+    application.add_handler(CallbackQueryHandler(my_info, pattern="^my_info$"))
+    application.add_handler(CallbackQueryHandler(my_courses, pattern="^my_courses$"))
+    application.add_handler(CallbackQueryHandler(help_command, pattern="^help$"))
+    application.add_handler(CallbackQueryHandler(course_detail, pattern="^course_\\d+$"))
+    application.add_handler(CallbackQueryHandler(courses_page_callback, pattern="^courses_page_\\d+$"))
+    application.add_handler(CallbackQueryHandler(lambda u, c: None, pattern="^noop$"))
+
     return application
 
 

@@ -1,117 +1,207 @@
-# ChatGPT OTP Bot + Quản lý Học viên
+# 🎓 Anhlaptrinh Management — Hệ thống Quản lý Học viên & Bot Telegram OTP
 
-Dự án Django phục vụ 2 mục tiêu chính:
-
-- **Bot Telegram**: Tự động lấy mã OTP OpenAI từ Gmail.
-- **Web Dashboard**: Quản lý học viên, khóa học, đồng bộ dữ liệu với Voomly.
+Hệ thống quản lý học viên, khóa học, đồng bộ dữ liệu với Voomly, kết hợp Bot Telegram lấy mã OTP OpenAI tự động từ Gmail.
 
 ---
 
-## Cấu trúc thư mục
+## 📦 Công nghệ sử dụng
 
-```text
+| Thành phần | Công nghệ |
+|---|---|
+| **Backend** | Django (Python) — REST API thuần (không DRF) |
+| **Frontend** | React 19 + TypeScript + Vite + Tailwind CSS |
+| **Data Fetching** | TanStack React Query |
+| **Form** | React Hook Form + Zod |
+| **UI Library** | shadcn/ui |
+| **Bot** | python-telegram-bot (PTB v21) |
+| **Database** | PostgreSQL (Supabase) / SQLite (local) |
+| **Email** | Gmail IMAP (lấy OTP OpenAI) |
+| **Auth** | Session cookie (Django session) |
+
+---
+
+## 🏗 Kiến trúc tổng thể
+
+```
+Trình duyệt (React SPA @ localhost:5173)
+         │
+         ├── /api/*  ──proxy──>  Django API @ :8000
+         │
+         ├── Telegram Bot ──>    Django @ :8000
+         │
+         └── Voomly API ──>     Django ──> api.voomly.com
+
+Database: Supabase PostgreSQL / SQLite
+```
+
+### Flow dữ liệu chính
+
+1. **Web Dashboard**: React gọi API Django → Django query DB → trả JSON
+2. **Telegram Bot**: User nhập email → Bot lưu chat_id → User gửi OTP → Bot quét Gmail → trả OTP
+3. **Đồng bộ Voomly**: Django gọi API Voomly → đồng bộ khóa học & học viên → bulk insert/update DB
+
+---
+
+## 📁 Cấu trúc thư mục
+
+```
 .
-├── botapp/                    # Code chính (models, views, services, bot)
-├── config/                    # Cấu hình Django (settings, urls)
-├── templates/                 # Giao diện web (HTML + Bootstrap)
-├── Skill_AddStudent_Voomly/   # Skill dành cho Claude Code
-├── .env.example               # Mẫu file biến môi trường
-├── .gitignore                 # Danh sách file bỏ qua khi push git
-├── manage.py                  # Django CLI
-├── migration.py               # Script migrate dữ liệu
-├── otp_bot.py                 # Entry point chạy bot Telegram
-├── requirements.txt           # Danh sách thư viện Python
-├── VOOMLY_SYNC_GUIDE.md       # Tài liệu kỹ thuật đồng bộ Voomly
-└── README.md                  # File hướng dẫn này
+├── botapp/                        # Ứng dụng Django chính
+│   ├── bot.py                     # Telegram bot handlers
+│   ├── keyboards.py               # Inline keyboard Telegram
+│   ├── services.py                # Business logic (Voomly, OTP, lookup)
+│   ├── models.py                  # Course, Customer, Enrollment, CourseLink
+│   ├── views.py                   # API endpoints (HTML + JSON)
+│   ├── urls.py                    # URL routing
+│   ├── middleware.py              # CORS middleware
+│   ├── forms.py                   # Django forms (legacy)
+│   ├── admin.py                   # Admin config
+│   └── migrations/                # DB migrations
+├── config/                        # Cấu hình Django
+│   ├── settings.py                # Settings chính
+│   └── urls.py                    # Root URL config
+├── frontend/                      # React SPA
+│   ├── src/
+│   │   ├── api/                   # API client functions
+│   │   ├── hooks/                 # React Query hooks
+│   │   ├── context/               # AuthContext
+│   │   ├── components/            # React components
+│   │   │   ├── layout/            # Header, AppLayout
+│   │   │   ├── shared/            # SearchInput, Pagination, StatusBadge...
+│   │   │   ├── students/          # StudentFormModal...
+│   │   │   └── courses/           # CourseFormModal, EnrollStudentModal...
+│   │   ├── pages/                 # Login, Dashboard, Courses, CourseDetail, StudentDetail
+│   │   ├── types/                 # TypeScript interfaces
+│   │   ├── lib/                   # Utility functions
+│   │   ├── App.tsx                # Router + QueryClient
+│   │   ├── main.tsx               # Entry point
+│   │   └── index.css              # Tailwind + custom theme
+│   ├── index.html
+│   ├── vite.config.ts
+│   └── package.json
+├── .env.example                   # Mẫu file biến môi trường
+├── .gitignore                     # File bỏ qua khi push git
+├── manage.py                      # Django CLI
+├── requirements.txt               # Python dependencies
+└── README.md                      # File này
 ```
 
 ---
 
-## Cài đặt
+## 🚀 Cài đặt
 
-### 1. Yêu cầu
+### Yêu cầu
 
 - **Python** >= 3.10
+- **Node.js** >= 18
 - **Git**
 
-### 2. Tải code về
+### 1. Clone dự án
 
 ```powershell
 git clone <đường-dẫn-repo>
 cd Email-Management
 ```
 
-### 3. Tạo môi trường ảo (khuyến nghị)
+### 2. Backend — Cài Python
 
 ```powershell
 python -m venv venv
 venv\Scripts\activate
-```
-
-### 4. Cài thư viện
-
-```powershell
 pip install -r requirements.txt
 ```
 
-### 5. Tạo file biến môi trường
+### 3. Frontend — Cài Node
+
+```powershell
+cd frontend
+npm install
+cd ..
+```
+
+### 4. Tạo file biến môi trường
 
 ```powershell
 copy .env.example .env
 ```
 
-Mở file `.env` và điền thông tin thật của bạn:
+Mở file `.env` và điền thông tin:
 
 ```env
-# Telegram Bot
+# ─── Telegram Bot ────────────────────────────
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 EMAIL_ACCOUNT=your_gmail_address
 APP_PASSWORD=your_gmail_app_password
 
-# Web Dashboard
-COMPANY_NAME=OTP Academy
-COMPANY_LOGO_TEXT=OA
+# ─── Web Dashboard Login ─────────────────────
+COMPANY_NAME=Anhlaptrinh Management
+COMPANY_LOGO_TEXT=AL
 WEBAPP_LOGIN_EMAIL=admin@example.com
 WEBAPP_LOGIN_PASSWORD=change-me
 
-# Database (Supabase PostgreSQL - không bắt buộc)
-DB_HOST=your_supabase_db_host
+# ─── Database (Supabase PostgreSQL) ──────────
+# Nếu điền đủ 5 trường → dùng PostgreSQL
+# Nếu để trống → tự động dùng SQLite local
+DB_HOST=aws-1-ap-northeast-2.pooler.supabase.com
 DB_PORT=6543
 DB_NAME=postgres
-DB_USER=your_supabase_db_user
-DB_PASSWORD=your_supabase_db_password
+DB_USER=postgres.xxxxx
+DB_PASSWORD=your_password
 
-# Voomly API (không bắt buộc)
+# ─── Voomly API ─────────────────────────────
 VOOMLY_BEARER_TOKEN=your_voomly_token
+
+# ─── React Frontend URL (CORS) ──────────────
+FRONTEND_URL=http://localhost:5173
 ```
 
-> **Lưu ý**: Nếu không có Supabase, hệ thống sẽ tự động dùng SQLite (file `db.sqlite3` trên ổ cứng).
+> **Lưu ý về Database:**
+> - Nếu điền đủ `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` → Django dùng **PostgreSQL Supabase**
+> - Nếu thiếu bất kỳ trường nào → Django tự động dùng **SQLite** (file `db.sqlite3`)
 
-### 6. Tạo cơ sở dữ liệu
+### 5. Migrate database
 
 ```powershell
 python manage.py migrate
 ```
 
+Câu lệnh này sẽ tạo tất cả các bảng:
+- `botapp_course` — Khóa học
+- `botapp_courselink` — Liên kết học tập
+- `botapp_customer` — Học viên
+- `botapp_enrollment` — Đăng ký khóa học (bảng trung gian)
+
 ---
 
-## Chạy ứng dụng
+## 🏃 Chạy ứng dụng
 
-### Web Dashboard (terminal 1)
+Cần **3 terminal** riêng biệt:
+
+### Terminal 1 — Django Backend
 
 ```powershell
+cd d:\Email-Management
 python manage.py runserver
+# → http://127.0.0.1:8000/
 ```
 
-Mở trình duyệt tại `http://127.0.0.1:8000/`, đăng nhập bằng email/mật khẩu trong `.env`.
-
-### Bot Telegram (terminal 2)
+### Terminal 2 — React Frontend
 
 ```powershell
-python manage.py run_otp_bot
+cd d:\Email-Management\frontend
+npm run dev
+# → http://localhost:5173/
 ```
 
-Hoặc:
+### Terminal 3 — Telegram Bot
+
+```powershell
+cd d:\Email-Management
+python manage.py run_otp_bot
+# Bot đang chạy và lắng nghe tin nhắn...
+```
+
+### Hoặc chạy bot bằng:
 
 ```powershell
 python otp_bot.py
@@ -119,88 +209,331 @@ python otp_bot.py
 
 ---
 
-## Hướng dẫn sử dụng
+## 🌐 Hướng dẫn sử dụng Web Dashboard
 
-### Trên Web
+Mở `http://localhost:5173/` (hoặc `http://127.0.0.1:8000/` sẽ redirect sang React).
 
-| Trang | Mô tả |
+### Đăng nhập
+
+| Trường | Giá trị mặc định |
 |---|---|
-| `http://127.0.0.1:8000/` | Đăng nhập |
-| `/dashboard/` | Quản lý học viên (thêm, sửa, xóa, tìm kiếm) |
-| `/courses/` | Danh sách khóa học, đồng bộ từ Voomly |
-| `/courses/<id>/` | Chi tiết khóa học — thêm học viên, xem danh sách Voomly |
+| Email | `admin@example.com` (hoặc giá trị trong `.env`) |
+| Mật khẩu | `change-me` (hoặc giá trị trong `.env`) |
 
-### Trên Telegram Bot
+### Các trang
 
-Tra cứu học viên bằng email hoặc số điện thoại:
+| Route | Chức năng |
+|---|---|
+| `/dashboard` | Quản lý học viên (thêm, sửa, xóa, tìm kiếm, đồng bộ Voomly) |
+| `/students/:id` | Chi tiết học viên + danh sách khóa học đã đăng ký |
+| `/courses` | Quản lý khóa học (thêm, sửa, xóa, đồng bộ từ Voomly) |
+| `/courses/:id` | Chi tiết khóa học + danh sách học viên từ Voomly |
 
-```text
-/lookup email@example.com
-/lookup 0987654321
+### Tính năng chính
+
+- **Thêm học viên**: Form modal với chọn khóa học + ngày đăng ký/hết hạn
+- **Tìm kiếm**: Debounce 300ms, tìm theo tên/email/SĐT
+- **Phân trang**: 10 items/trang
+- **Đồng bộ Voomly**: Button "Đồng bộ từ Voomly" — gọi API song song, bulk insert
+- **Thêm học viên vào khóa học**: Tìm kiếm học viên có sẵn hoặc tạo mới
+
+---
+
+## 🤖 Telegram Bot
+
+### Tìm bot trên Telegram
+
+Tìm theo tên bot của bạn (dựa vào `TELEGRAM_BOT_TOKEN`).
+
+### Các lệnh
+
+| Lệnh | Chức năng |
+|---|---|
+| `/start` | Bắt đầu / Liên kết tài khoản Telegram với email |
+| `/me` | Xem thông tin cá nhân (email, tên, SĐT, khóa học) |
+| `/courses` | Xem danh sách khóa học đã đăng ký (có phân trang) |
+| `/otp` | Lấy mã OTP OpenAI nhanh (nếu đã liên kết email) |
+| `/lookup <email \| SĐT>` | Tra cứu thông tin học viên (Admin) |
+| `/help` | Hướng dẫn sử dụng |
+
+### Luồng hoạt động OTP
+
+```
+1. User gõ /start
+2. Bot gửi tin nhắn chào mừng + yêu cầu nhập email
+3. User nhập email → Bot kiểm tra + liên kết Telegram chat_id với Customer
+4. User truy cập OpenAI → gửi mã OTP
+5. User bấm nút "🔑 Lấy OTP" → Bot quét Gmail (IMAP)
+6. Bot trả về mã OTP 6 số
+```
+
+### Menu Inline Keyboard
+
+Sau khi liên kết thành công, bot hiển thị menu:
+```
+👤 Thông tin của tôi
+📚 Khóa học của tôi
+🔑 Lấy mã OTP
+❓ Trợ giúp
+```
+
+- **Thông tin của tôi**: Xem email, tên, SĐT, trạng thái, số khóa học
+- **Khóa học của tôi**: Danh sách khóa học (phân trang 5/trang), click vào xem chi tiết (ngày hết hạn, còn bao nhiêu ngày)
+- **Lấy mã OTP**: Quét Gmail tìm OTP OpenAI
+- **Trợ giúp**: Hướng dẫn các lệnh
+
+---
+
+## 🔄 Đồng bộ Voomly
+
+### API Endpoints
+
+| Chức năng | Method | URL |
+|---|---|---|
+| Đồng bộ khóa học | POST | `/api/sync/courses/` |
+| Đồng bộ học viên | POST | `/api/sync/students/` |
+| Lấy danh sách khóa học | GET | `/api/courses/` |
+| Chi tiết khóa học + Voomly students | GET | `/api/courses/:id/` |
+
+### Kiến trúc đồng bộ
+
+```
+sync_all_students_from_voomly()
+│
+├── Bước 1: ThreadPoolExecutor (15 workers)
+│   └── fetch_students_for_course() — chỉ gọi HTTP, không ORM
+│
+├── Bước 2: In-memory Matching
+│   ├── Load all existing Customers by email
+│   └── Load all existing Enrollments by (customer, course)
+│
+└── Bước 3: Bulk DB operations
+    ├── bulk_create() cho Customer mới
+    ├── bulk_update() cho Customer có tên mới
+    ├── bulk_create() cho Enrollment mới
+    ├── bulk_update() cho Enrollment thay đổi
+    └── bulk_update() cho Customer aggregate fields
+```
+
+### Bug #001: endTime sai múi giờ
+
+**File:** [botapp/services.py](botapp/services.py) — hàm `fetch_students_for_course`
+
+**Nguyên nhân:** Dùng `timezone.now()` (giờ UTC) làm `endTime` nhưng API Voomly interpret theo `timeZone=Etc/GMT-7`
+
+**Fix:**
+```python
+# Sai:
+"endTime": timezone.now().strftime("%Y-%m-%dT%H:%M:%S")
+
+# Đúng:
+"endTime": timezone.localtime().strftime("%Y-%m-%dT%H:%M:%S")
 ```
 
 ---
 
-## Git: file nào push, file nào bỏ qua?
+## 📡 API Endpoints — Đầy đủ
 
-### 🔒 Các file bị git bỏ qua (trong `.gitignore`)
+### Auth
 
-| File / Thư mục | Lý do bỏ qua |
+| Method | URL | Chức năng |
+|---|---|---|
+| POST | `/api/login/` | Đăng nhập (trả về session cookie) |
+| POST | `/api/logout/` | Đăng xuất (xóa session) |
+
+### Dashboard / Students
+
+| Method | URL | Chức năng |
+|---|---|---|
+| GET | `/api/dashboard/` | Danh sách học viên (query: `q`, `page`) |
+| GET | `/api/dashboard/stats/` | Thống kê tổng quan |
+| POST | `/api/dashboard/create/` | Tạo học viên + enrollments |
+| PUT | `/api/dashboard/:id/` | Cập nhật học viên |
+| DELETE | `/api/dashboard/:id/delete/` | Xóa học viên |
+| GET | `/api/students/:id/` | Chi tiết học viên + enrollments |
+| GET | `/courses/search-students/` | Tìm kiếm học viên (query: `q`, `course_id`, `page`) |
+
+### Courses
+
+| Method | URL | Chức năng |
+|---|---|---|
+| GET | `/api/courses/` | Danh sách khóa học (query: `page`) |
+| POST | `/api/courses/create/` | Tạo khóa học + links |
+| PUT | `/api/courses/:id/update/` | Cập nhật khóa học |
+| DELETE | `/api/courses/:id/delete/` | Xóa khóa học |
+| GET | `/api/courses/:id/` | Chi tiết khóa học + Voomly students |
+| POST | `/courses/update-website/` | Cập nhật link website khóa học |
+
+### Enrollments
+
+| Method | URL | Chức năng |
+|---|---|---|
+| POST | `/api/enroll/` | Đăng ký học viên vào khóa học |
+| POST | `/api/sync/courses/` | Đồng bộ khóa học từ Voomly |
+| POST | `/api/sync/students/` | Đồng bộ học viên từ Voomly |
+
+---
+
+## 🗄 Database Schema
+
+### Course
+
+| Field | Type | Ghi chú |
+|---|---|---|
+| `id` | AutoField | PK |
+| `spotlight_id` | CharField(50) | unique, nullable — ánh xạ Voomly |
+| `name` | CharField(255) | unique |
+| `description` | TextField | |
+| `web_link` | URLField(500) | Auto-generate từ name nếu trống |
+| `created_at` | DateTimeField | auto_now_add |
+
+### Customer
+
+| Field | Type | Ghi chú |
+|---|---|---|
+| `id` | AutoField | PK |
+| `telegram_chat_id` | BigIntegerField | unique, nullable |
+| `customer_email` | EmailField | unique |
+| `phone_number` | CharField(20) | |
+| `full_name` | CharField(255) | |
+| `registration_date` | DateField | nullable — min của enrollments |
+| `expiry_date` | DateField | nullable — max của enrollments |
+| `status` | CharField(20) | ACTIVE / PENDING / EXPIRED |
+| `has_sent_otp` | BooleanField | |
+| `created_at` | DateTimeField | auto_now_add |
+
+### Enrollment (bảng trung gian)
+
+| Field | Type | Ghi chú |
+|---|---|---|
+| `id` | AutoField | PK |
+| `customer` | FK → Customer | CASCADE |
+| `course` | FK → Course | CASCADE |
+| `registration_date` | DateField | nullable |
+| `expiry_date` | DateField | nullable |
+| `status` | CharField(20) | ACTIVE / PENDING / EXPIRED |
+| `created_at` | DateTimeField | auto_now_add |
+
+### CourseLink
+
+| Field | Type | Ghi chú |
+|---|---|---|
+| `id` | AutoField | PK |
+| `course` | FK → Course | CASCADE, related_name="links" |
+| `title` | CharField(255) | |
+| `url` | URLField(500) | |
+| `created_at` | DateTimeField | auto_now_add |
+
+---
+
+## 🐙 Git — File nào push, file nào bỏ qua?
+
+### 🔒 Bị bỏ qua (`.gitignore`)
+
+| File / Thư mục | Lý do |
 |---|---|
 | `.env` | **Chứa mật khẩu, token — bí mật tuyệt đối!** |
-| `venv/`, `.venv/` | Môi trường ảo — mỗi máy tự tạo lại |
-| `__pycache__/`, `*.pyc` | Cache bytecode của Python |
-| `db.sqlite3` | Database local — mỗi máy dữ liệu riêng |
-| `*.log` | File log trong lúc chạy |
-| `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/` | Cache công cụ phát triển |
-| `.coverage`, `htmlcov/` | Báo cáo kiểm thử |
-| `.DS_Store`, `Thumbs.db` | File hệ thống (MacOS / Windows) |
+| `venv/`, `.venv/` | Môi trường ảo Python |
+| `frontend/node_modules/` | Thư viện Node |
+| `frontend/dist/` | Build output |
+| `__pycache__/`, `*.pyc` | Cache bytecode Python |
+| `db.sqlite3` | Database local |
+| `*.log` | File log runtime |
+| `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/` | Cache dev tools |
+| `.coverage`, `htmlcov/` | Báo cáo test |
+| `.DS_Store`, `Thumbs.db` | File hệ thống |
 
-### ✅ Các file được push lên git
+### ✅ Được push lên git
 
 | File | Mục đích |
 |---|---|
-| `botapp/` | Code ứng dụng |
+| `botapp/` | Code Python (models, views, services, bot) |
 | `config/` | Cấu hình Django |
-| `templates/` | Giao diện web |
+| `frontend/src/` | Code React TypeScript |
+| `frontend/package.json` | Dependencies Node |
+| `frontend/vite.config.ts` | Vite config |
+| `frontend/index.html` | HTML entry |
 | `manage.py` | Django CLI |
-| `requirements.txt` | Danh sách thư viện |
+| `requirements.txt` | Python dependencies |
 | `.env.example` | Mẫu cho người khác copy thành `.env` |
-| `.gitignore` | Liệt kê file bỏ qua |
-| `VOOMLY_SYNC_GUIDE.md` | Tài liệu kỹ thuật |
+| `.gitignore` | Danh sách ignore |
 
 ---
 
-## Cài đặt trên máy khác (sau khi clone về)
+## 💻 Cài đặt trên máy khác
 
 ```powershell
-# 1. Vào thư mục
+# 1. Clone
+git clone <url-repo>
 cd Email-Management
 
-# 2. Tạo môi trường ảo
+# 2. Backend
 python -m venv venv
 venv\Scripts\activate
-
-# 3. Cài thư viện
 pip install -r requirements.txt
 
-# 4. Tạo file .env từ mẫu
+# 3. Frontend
+cd frontend
+npm install
+cd ..
+
+# 4. Tạo .env
 copy .env.example .env
+# ⚠️ Mở .env và điền: token Telegram, Gmail, database, Voomly...
 
-# 5. Mở file .env và điền thông tin riêng của máy này
-#    (token Telegram, Gmail, database...)
-
-# 6. Tạo database
+# 5. Migrate DB
 python manage.py migrate
 
-# 7. Chạy thử
-python manage.py runserver
+# 6. Chạy thử (3 terminal)
+python manage.py runserver           # Django :8000
+cd frontend && npm run dev           # React :5173
+python manage.py run_otp_bot         # Telegram bot
 ```
 
-> **Quan trọng**: File `.env` **không được đồng bộ qua git**. Mỗi máy phải tự tạo và điền thông tin riêng. Nếu cần chia sẻ, hãy gửi file `.env` qua kênh riêng (email, cloud mật...), đừng commit lên git.
+> **Quan trọng**: File `.env` không được đồng bộ qua git. Mỗi máy tự tạo.
+> Nếu cần chia sẻ `.env`, gửi qua kênh riêng (email, cloud mật).
 
 ---
 
-## Liên kết
+## 🔧 Troubleshooting
 
-- [Hướng dẫn đồng bộ Voomly](VOOMLY_SYNC_GUIDE.md) — API Voomly, tối ưu hiệu năng, bug log
+### Web không hiển thị học viên từ Voomly
+
+Kiểm tra log Django ở terminal:
+```
+[Voomly] fetch_students_for_course: BẮT ĐẦU...
+[Voomly] URL=... | VOOMLY_BEARER_TOKEN=...
+[Voomly] Response status=200...
+```
+
+Nếu không thấy log → kiểm tra VSOMLY_BEARER_TOKEN trong `.env`.
+
+### Bot Telegram lỗi "Conflict: terminated by other getUpdates request"
+
+```powershell
+taskkill /f /im python.exe
+# Sau đó chạy lại bot
+python manage.py run_otp_bot
+```
+
+### CORS lỗi khi React gọi API
+
+Kiểm tra `.env` có `FRONTEND_URL=http://localhost:5173` và Django settings có CORS middleware.
+
+### Database migration lỗi
+
+```powershell
+python manage.py migrate --run-syncdb
+python manage.py showmigrations
+```
+
+---
+
+## 📚 Liên kết
+
+- [Hướng dẫn đồng bộ Voomly chi tiết](VOOMLY_SYNC_GUIDE.md) — Kiến trúc, tối ưu, bug log
+- [Kế hoạch chuyển đổi React](.claude/plans/agile-exploring-sparrow.md) — Lộ trình React migration
+
+---
+
+*Hệ thống được phát triển bởi **Anh Lập Trình** — Trợ lý **Thu Nhi** hỗ trợ quản lý học tập.*

@@ -1,6 +1,22 @@
 from django.urls import path
 
 from .views import (
+    api_course_detail_json,
+    api_courses_create,
+    api_courses_delete,
+    api_courses_list,
+    api_courses_update,
+    api_dashboard_create,
+    api_dashboard_delete,
+    api_dashboard_list,
+    api_dashboard_stats,
+    api_dashboard_update,
+    api_enroll_student,
+    api_login,
+    api_logout,
+    api_student_detail,
+    api_sync_courses,
+    api_sync_students,
     course_detail_api,
     courses_view,
     course_detail_view,
@@ -18,6 +34,7 @@ from .views import (
 
 
 urlpatterns = [
+    # HTML pages
     path("", login_view, name="login"),
     path("dashboard/", dashboard_view, name="dashboard"),
     path("dashboard/student-detail/", student_detail_api, name="student_detail_api"),
@@ -31,6 +48,23 @@ urlpatterns = [
     path("courses/search-students/", student_search_api, name="student_search_api"),
     path("courses/enroll-student/", enroll_student_view, name="enroll_student"),
     path("logout/", logout_view, name="logout"),
+    # API endpoints (JSON)
+    path("api/login/", api_login, name="api_login"),
+    path("api/logout/", api_logout, name="api_logout"),
+    path("api/dashboard/", api_dashboard_list, name="api_dashboard_list"),
+    path("api/dashboard/create/", api_dashboard_create, name="api_dashboard_create"),
+    path("api/dashboard/<int:id>/", api_dashboard_update, name="api_dashboard_update"),
+    path("api/dashboard/<int:id>/delete/", api_dashboard_delete, name="api_dashboard_delete"),
+    path("api/dashboard/stats/", api_dashboard_stats, name="api_dashboard_stats"),
+    path("api/students/<int:id>/", api_student_detail, name="api_student_detail"),
+    path("api/courses/", api_courses_list, name="api_courses_list"),
+    path("api/courses/create/", api_courses_create, name="api_courses_create"),
+    path("api/courses/<int:id>/", api_course_detail_json, name="api_course_detail_json"),
+    path("api/courses/<int:id>/update/", api_courses_update, name="api_courses_update"),
+    path("api/courses/<int:id>/delete/", api_courses_delete, name="api_courses_delete"),
+    path("api/enroll/", api_enroll_student, name="api_enroll_student"),
+    path("api/sync/courses/", api_sync_courses, name="api_sync_courses"),
+    path("api/sync/students/", api_sync_students, name="api_sync_students"),
 ]
 
 

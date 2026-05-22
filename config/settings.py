@@ -10,8 +10,8 @@ load_dotenv(BASE_DIR / ".env")
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "django-insecure-otp-bot-dev-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "True").lower() == "true"
 ALLOWED_HOSTS = [host.strip() for host in os.getenv("DJANGO_ALLOWED_HOSTS", "*").split(",") if host.strip()]
-COMPANY_NAME = os.getenv("COMPANY_NAME", "OTP Academy")
-COMPANY_LOGO_TEXT = os.getenv("COMPANY_LOGO_TEXT", "OA")
+COMPANY_NAME = os.getenv("COMPANY_NAME", "Anhlaptrinh Management")
+COMPANY_LOGO_TEXT = os.getenv("COMPANY_LOGO_TEXT", "AL")
 WEBAPP_LOGIN_EMAIL = os.getenv("WEBAPP_LOGIN_EMAIL", "admin@example.com")
 WEBAPP_LOGIN_PASSWORD = os.getenv("WEBAPP_LOGIN_PASSWORD", "change-me")
 
@@ -24,6 +24,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    "botapp.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
@@ -32,12 +33,21 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173").rstrip("/")
+
+CORS_ALLOWED_ORIGINS = [
+    os.getenv("FRONTEND_URL", "http://localhost:5173"),
+]
+CSRF_TRUSTED_ORIGINS = [os.getenv("FRONTEND_URL", "http://localhost:5173")]
+CSRF_COOKIE_SAMESITE = "Lax"
+SESSION_COOKIE_SAMESITE = "Lax"
+
 ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
