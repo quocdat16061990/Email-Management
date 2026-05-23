@@ -79,7 +79,6 @@ export default function CoursesPage() {
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50">
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Khóa học</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Spotlight ID</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Website</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Học viên</th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ngày tạo</th>
@@ -87,9 +86,9 @@ export default function CoursesPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {isLoading && <tr><td colSpan={6}><LoadingSpinner /></td></tr>}
-              {isError && <tr><td colSpan={6}><ErrorState onRetry={() => refetch()} /></td></tr>}
-              {data?.courses.length === 0 && <tr><td colSpan={6}><EmptyState text="Chưa có khóa học nào." /></td></tr>}
+              {isLoading && <tr><td colSpan={5}><LoadingSpinner /></td></tr>}
+              {isError && <tr><td colSpan={5}><ErrorState onRetry={() => refetch()} /></td></tr>}
+              {data?.courses.length === 0 && <tr><td colSpan={5}><EmptyState text="Chưa có khóa học nào." /></td></tr>}
               {data?.courses.map((c) => (
                 <tr key={c.id} className="hover:bg-gray-50/50 transition-colors">
                   <td className="px-4 py-3">
@@ -99,13 +98,6 @@ export default function CoursesPage() {
                       </div>
                       <span className="font-medium text-gray-900 text-sm hover:text-brand-600">{c.name}</span>
                     </Link>
-                  </td>
-                  <td className="px-4 py-3">
-                    {c.spotlight_id ? (
-                      <code className="text-xs font-mono bg-purple-50 text-purple-700 px-2 py-0.5 rounded">{c.spotlight_id}</code>
-                    ) : (
-                      <span className="text-xs text-gray-400 italic">Chưa liên kết</span>
-                    )}
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">

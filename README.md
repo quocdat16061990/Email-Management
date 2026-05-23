@@ -1,6 +1,44 @@
 # 🎓 Anhlaptrinh Management — Hệ thống Quản lý Học viên & Bot Telegram OTP
 
-Hệ thống quản lý học viên, khóa học, đồng bộ dữ liệu với Voomly, kết hợp Bot Telegram lấy mã OTP OpenAI tự động từ Gmail.
+> **Mô tả dự án:** Hệ thống quản lý học viên tập trung, tự động hóa việc lấy mã OTP OpenAI qua Telegram, đồng bộ dữ liệu khóa học & học viên từ Voomly. Giao diện web dashboard hiện đại (React SPA) giúp admin quản lý học viên, khóa học, đăng ký — tất cả trên một nền tảng duy nhất.
+
+---
+
+### 🎯 Vấn đề được giải quyết
+
+1. **OTP OpenAI thủ công** — Trước đây học viên phải tự tay lấy mã OTP từ Gmail → mất thời gian, sai sót. Bot Telegram tự động quét Gmail, trả OTP trong 5-30 giây.
+2. **Quản lý học viên rời rạc** — Không có dashboard tập trung. Nay admin xem được toàn bộ học viên, khóa học, trạng thái đăng ký trên một giao diện web.
+3. **Đồng bộ Voomly thủ công** — Khóa học & học viên từ Voomly trước đây phải nhập tay. Nay click 1 nút là đồng bộ tự động 100+ khóa học, 4000+ học viên trong ~35 giây.
+4. **Tra cứu chậm** — Học viên gọi điện hỏi thông tin → admin lookup Telegram, có ngay email, tên, SĐT, khóa học, trạng thái.
+
+### 📊 Lợi ích kinh doanh
+
+| Chỉ tiêu | Trước | Sau |
+|---|---|---|
+| Thời gian lấy OTP | 2-5 phút (thủ công) | 5-30 giây (tự động) |
+| Đồng bộ khóa học Voomly | Nhập tay, không đồng bộ | 1 click, ~35 giây |
+| Tra cứu học viên | Mở DB / hỏi lại | /lookup Telegram, 1 giây |
+| Giao diện quản lý | Không có | Dashboard React SPA |
+| Load lại trang khi thao tác | Có (Django templates) | Không (React SPA mượt mà) |
+
+### 🏗 Kiến trúc tổng thể
+
+```
+Người dùng cuối (Học viên)               Admin (Nhân viên)
+        │                                       │
+        ▼                                       ▼
+┌─────────────────┐                  ┌──────────────────────┐
+│  Telegram Bot   │                  │  React Web Dashboard │
+│  (lấy OTP, xem  │                  │  (Quản lý học viên,  │
+│   khóa học)     │                  │   khóa học, đồng bộ) │
+└────────┬────────┘                  └──────────┬───────────┘
+         │                                       │
+         └───────────────┬───────────────────────┘
+                         ▼
+               ┌──────────────────┐
+               │  Django Backend  │ ←── Supabase PostgreSQL
+               │  (REST API)      │ ←── Voomly API
+               └──────────────────┘
 
 ---
 

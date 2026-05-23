@@ -172,8 +172,6 @@ async def course_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     course = enrollment.course
-    stud_count = await sync_to_async(Enrollment.objects.filter(course=course).count)()
-
     remaining = ""
     if enrollment.expiry_date:
         days = (enrollment.expiry_date - datetime.now().date()).days
@@ -190,8 +188,7 @@ async def course_detail(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"📅 *Đăng ký:* {enrollment.registration_date or 'N/A'}\n"
         f"📅 *Hết hạn:* {enrollment.expiry_date or 'N/A'}\n"
         f"📊 *Trạng thái:* {ENROLLMENT_STATUS_LABELS.get(enrollment.status, enrollment.status)}\n"
-        f"{remaining}\n"
-        f"👥 *Tổng học viên:* {stud_count}"
+        f"{remaining}"
     )
 
     if course.web_link:

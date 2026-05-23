@@ -68,17 +68,8 @@ export default function CourseDetailPage() {
                 {course.name.slice(0, 2).toUpperCase()}
               </div>
               <h2 className="mt-3 text-lg font-bold text-gray-900">{course.name}</h2>
-              <div className="mt-2">
-                {course.spotlight_id ? (
-                  <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-100">
-                    Spotlight ID: <code className="ml-1 font-mono">{course.spotlight_id}</code>
-                  </span>
-                ) : (
-                  <span className="inline-flex px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-500">Chưa liên kết Spotlight ID</span>
-                )}
               </div>
-            </div>
-            <div className="px-6 pb-6 space-y-4">
+              <div className="px-6 pb-6 space-y-4">
               <div>
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Mô tả</p>
                 <p className="text-sm text-gray-700 mt-0.5">{course.description || 'Chưa có mô tả chi tiết.'}</p>

@@ -8,8 +8,8 @@ export default defineConfig({
     port: 5173,
     proxy: {
       '/api': { target: 'http://localhost:8000', changeOrigin: true },
-      '/courses': { target: 'http://localhost:8000', changeOrigin: true },
-      '/dashboard': { target: 'http://localhost:8000', changeOrigin: true },
+      '/courses/search-students/': { target: 'http://localhost:8000', changeOrigin: true },
+      '/courses/update-website/': { target: 'http://localhost:8000', changeOrigin: true },
     },
   },
 })

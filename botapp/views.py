@@ -45,6 +45,16 @@ def web_login_required(view_func):
     return wrapped
 
 
+def api_login_required(view_func):
+    @wraps(view_func)
+    def wrapped(request: HttpRequest, *args, **kwargs):
+        if not request.session.get(SESSION_KEY):
+            return JsonResponse({"error": "Phiên đăng nhập hết hạn. Vui lòng đăng nhập lại."}, status=401)
+        return view_func(request, *args, **kwargs)
+
+    return wrapped
+
+
 def login_view(request: HttpRequest) -> HttpResponse:
     return redirect(f"{settings.FRONTEND_URL}/login")
 
@@ -65,7 +75,7 @@ def courses_view(request: HttpRequest) -> HttpResponse:
     return redirect(f"{settings.FRONTEND_URL}/courses")
 
 
-@web_login_required
+@api_login_required
 def student_detail_api(request: HttpRequest) -> JsonResponse:
     student_id = request.GET.get("id")
     if not student_id:
@@ -96,7 +106,7 @@ def student_detail_api(request: HttpRequest) -> JsonResponse:
     })
 
 
-@web_login_required
+@api_login_required
 def course_detail_api(request: HttpRequest) -> JsonResponse:
     course_id = request.GET.get("id")
     if not course_id:
@@ -120,7 +130,7 @@ def student_detail_view(request: HttpRequest, student_id: int) -> HttpResponse:
     return redirect(f"{settings.FRONTEND_URL}/students/{student_id}")
 
 
-@web_login_required
+@api_login_required
 def sync_courses_view(request: HttpRequest) -> HttpResponse:
     try:
         result = sync_courses_from_voomly()
@@ -129,7 +139,8 @@ def sync_courses_view(request: HttpRequest) -> HttpResponse:
         return JsonResponse({"error": f"Lỗi đồng bộ: {e}"}, status=500)
 
 
-@web_login_required
+@csrf_exempt
+@api_login_required
 def update_course_website_api(request: HttpRequest) -> JsonResponse:
     if request.method != "POST":
         return JsonResponse({"error": "Phương thức không được hỗ trợ"}, status=405)
@@ -156,7 +167,7 @@ def update_course_website_api(request: HttpRequest) -> JsonResponse:
     })
 
 
-@web_login_required
+@api_login_required
 def sync_students_view(request: HttpRequest) -> HttpResponse:
     try:
         result = sync_all_students_from_voomly()
@@ -165,7 +176,7 @@ def sync_students_view(request: HttpRequest) -> HttpResponse:
         return JsonResponse({"error": f"Lỗi đồng bộ: {e}"}, status=500)
 
 
-@web_login_required
+@api_login_required
 def student_search_api(request: HttpRequest) -> JsonResponse:
     query = request.GET.get("q", "").strip()
     page_number = request.GET.get("page", 1)
@@ -259,7 +270,7 @@ def api_logout(request: HttpRequest) -> JsonResponse:
 
 # ─── API: Dashboard / Students ───────────────────────────────────────────────
 
-@web_login_required
+@api_login_required
 def api_dashboard_list(request: HttpRequest) -> JsonResponse:
     query = request.GET.get("q", "").strip()
     page_number = request.GET.get("page", 1)
@@ -310,7 +321,7 @@ def api_dashboard_list(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_dashboard_create(request: HttpRequest) -> JsonResponse:
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -363,7 +374,7 @@ def api_dashboard_create(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_dashboard_update(request: HttpRequest, id: int) -> JsonResponse:
     if request.method != "PUT":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -401,7 +412,7 @@ def api_dashboard_update(request: HttpRequest, id: int) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_dashboard_delete(request: HttpRequest, id: int) -> JsonResponse:
     customer = get_object_or_404(Customer, id=id)
     email = customer.customer_email
@@ -409,7 +420,7 @@ def api_dashboard_delete(request: HttpRequest, id: int) -> JsonResponse:
     return JsonResponse({"success": True, "message": f"Đã xóa học viên '{email}'."})
 
 
-@web_login_required
+@api_login_required
 def api_student_detail(request: HttpRequest, id: int) -> JsonResponse:
     student = get_object_or_404(Customer.objects.prefetch_related("enrollments__course__links"), id=id)
     enrollments = []
@@ -439,7 +450,7 @@ def api_student_detail(request: HttpRequest, id: int) -> JsonResponse:
     })
 
 
-@web_login_required
+@api_login_required
 def api_dashboard_stats(request: HttpRequest) -> JsonResponse:
     total = Customer.objects.count()
     active = Customer.objects.filter(status="ACTIVE").count()
@@ -459,7 +470,7 @@ def api_dashboard_stats(request: HttpRequest) -> JsonResponse:
 
 # ─── API: Courses ─────────────────────────────────────────────────────────────
 
-@web_login_required
+@api_login_required
 def api_courses_list(request: HttpRequest) -> JsonResponse:
     page_number = request.GET.get("page", 1)
     qs = Course.objects.annotate(student_count=Count("customers")).order_by("-created_at")
@@ -493,7 +504,7 @@ def api_courses_list(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_courses_create(request: HttpRequest) -> JsonResponse:
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -522,7 +533,7 @@ def api_courses_create(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_courses_update(request: HttpRequest, id: int) -> JsonResponse:
     if request.method != "PUT":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -550,7 +561,7 @@ def api_courses_update(request: HttpRequest, id: int) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_courses_delete(request: HttpRequest, id: int) -> JsonResponse:
     course = get_object_or_404(Course, id=id)
     name = course.name
@@ -558,7 +569,7 @@ def api_courses_delete(request: HttpRequest, id: int) -> JsonResponse:
     return JsonResponse({"success": True, "message": f"Đã xóa khóa học '{name}'."})
 
 
-@web_login_required
+@api_login_required
 def api_course_detail_json(request: HttpRequest, id: int) -> JsonResponse:
     course = get_object_or_404(Course, id=id)
     student_count = Enrollment.objects.filter(course=course).count()
@@ -591,7 +602,7 @@ def api_course_detail_json(request: HttpRequest, id: int) -> JsonResponse:
 # ─── API: Enroll ──────────────────────────────────────────────────────────────
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_enroll_student(request: HttpRequest) -> JsonResponse:
     if request.method != "POST":
         return JsonResponse({"error": "Method not allowed"}, status=405)
@@ -659,7 +670,7 @@ def api_enroll_student(request: HttpRequest) -> JsonResponse:
 # ─── API: Sync ────────────────────────────────────────────────────────────────
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_sync_courses(request: HttpRequest) -> JsonResponse:
     try:
         result = sync_courses_from_voomly()
@@ -669,7 +680,7 @@ def api_sync_courses(request: HttpRequest) -> JsonResponse:
 
 
 @csrf_exempt
-@web_login_required
+@api_login_required
 def api_sync_students(request: HttpRequest) -> JsonResponse:
     try:
         result = sync_all_students_from_voomly()
