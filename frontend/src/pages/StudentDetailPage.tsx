@@ -1,9 +1,12 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useStudentDetail } from '../hooks/useStudents'
 import Avatar from '../components/shared/Avatar'
 import StatusBadge from '../components/shared/StatusBadge'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
 import ErrorState from '../components/shared/ErrorState'
+import type { EnrollmentDetail } from '../types/student'
 
 function ExpiryProgress({ regDate, expDate }: { regDate?: string | null; expDate?: string | null }) {
   if (!regDate || !expDate) {
@@ -42,9 +45,55 @@ function ExpiryProgress({ regDate, expDate }: { regDate?: string | null; expDate
   )
 }
 
+function CourseEnrollmentCard({ e }: { e: EnrollmentDetail }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
+      <div className="flex items-start justify-between mb-3">
+        <div>
+          <Link to={`/courses/${e.course_id}`} className="font-semibold text-gray-900 hover:text-brand-600">
+            {e.course_name}
+          </Link>
+          {e.course_description && <p className="text-sm text-gray-500 mt-0.5">{e.course_description}</p>}
+        </div>
+        <StatusBadge status={e.status} />
+      </div>
+      <div className="grid grid-cols-2 gap-4 mb-3 text-sm">
+        <div>
+          <span className="text-gray-500">Đăng ký:</span>{' '}
+          <span className="font-medium text-gray-700">{e.registration_date || '-'}</span>
+        </div>
+        <div>
+          <span className="text-gray-500">Hết hạn:</span>{' '}
+          <span className="font-medium text-gray-700">{e.expiry_date || '-'}</span>
+        </div>
+      </div>
+      <ExpiryProgress regDate={e.registration_date} expDate={e.expiry_date} />
+      {/* Links */}
+      {(e.web_link || (e.links && e.links.length > 0)) && (
+        <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
+          {e.web_link && (
+            <a href={e.web_link} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-xs font-medium hover:bg-brand-100 transition-colors">
+              <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+              Website Khóa Học
+            </a>
+          )}
+          {(e.links || []).map((link, i: number) => (
+            <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-medium hover:bg-purple-100 transition-colors">
+              {link.title}
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>()
   const { data: student, isLoading, isError, refetch } = useStudentDetail(id ? parseInt(id) : null)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   if (isLoading) return <LoadingSpinner />
   if (isError) return <ErrorState onRetry={() => refetch()} />
@@ -79,7 +128,18 @@ export default function StudentDetailPage() {
               {student.telegram_chat_id && (
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Telegram Chat ID</p>
-                  <p className="text-sm text-gray-900">{student.telegram_chat_id}</p>
+                  <p className="text-sm text-gray-900 flex items-center gap-1.5 mt-0.5">
+                    {student.telegram_chat_id}
+                    {student.is_verified_telegram ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-100">
+                        Đã xác thực
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                        Chưa xác thực
+                      </span>
+                    )}
+                  </p>
                 </div>
               )}
               <div>
@@ -98,48 +158,49 @@ export default function StudentDetailPage() {
               <p className="text-sm text-gray-400 italic">Học viên chưa đăng ký khóa học nào.</p>
             </div>
           ) : (
-            student.enrollments.map((e: any) => (
-              <div key={e.course_id} className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <Link to={`/courses/${e.course_id}`} className="font-semibold text-gray-900 hover:text-brand-600">
-                      {e.course_name}
-                    </Link>
-                    {e.course_description && <p className="text-sm text-gray-500 mt-0.5">{e.course_description}</p>}
-                  </div>
-                  <StatusBadge status={e.status} />
-                </div>
-                <div className="grid grid-cols-2 gap-4 mb-3 text-sm">
-                  <div>
-                    <span className="text-gray-500">Đăng ký:</span>{' '}
-                    <span className="font-medium text-gray-700">{e.registration_date || '-'}</span>
-                  </div>
-                  <div>
-                    <span className="text-gray-500">Hết hạn:</span>{' '}
-                    <span className="font-medium text-gray-700">{e.expiry_date || '-'}</span>
-                  </div>
-                </div>
-                <ExpiryProgress regDate={e.registration_date} expDate={e.expiry_date} />
-                {/* Links */}
-                {(e.web_link || (e.links && e.links.length > 0)) && (
-                  <div className="flex flex-wrap gap-2 mt-3 pt-3 border-t border-gray-100">
-                    {e.web_link && (
-                      <a href={e.web_link} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-brand-50 text-brand-700 text-xs font-medium hover:bg-brand-100 transition-colors">
-                        <svg className="w-3.5 h-3.5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-                        Website Khóa Học
-                      </a>
-                    )}
-                    {(e.links || []).map((link: any, i: number) => (
-                      <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-purple-50 text-purple-700 text-xs font-medium hover:bg-purple-100 transition-colors">
-                        {link.title}
-                      </a>
+            <div className="space-y-4">
+              {student.enrollments.slice(0, 3).map((e: EnrollmentDetail) => (
+                <CourseEnrollmentCard key={e.course_id} e={e} />
+              ))}
+              <AnimatePresence initial={false}>
+                {isExpanded && student.enrollments.length > 3 && (
+                  <motion.div
+                    key="expanded-courses"
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="overflow-hidden space-y-4"
+                  >
+                    {student.enrollments.slice(3).map((e: EnrollmentDetail) => (
+                      <CourseEnrollmentCard key={e.course_id} e={e} />
                     ))}
-                  </div>
+                  </motion.div>
                 )}
-              </div>
-            ))
+              </AnimatePresence>
+              {student.enrollments.length > 3 && (
+                <div className="flex justify-center pt-2">
+                  <motion.button
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:text-brand-600 hover:border-brand-300 shadow-sm transition-colors cursor-pointer select-none"
+                  >
+                    <span>{isExpanded ? 'Thu gọn' : `Xem thêm (${student.enrollments.length - 3} khóa học)`}</span>
+                    <svg
+                      className={`w-4 h-4 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                      xmlns="http://www.w3.org/2000/svg"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="m6 9 6 6 6-6"/>
+                    </svg>
+                  </motion.button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

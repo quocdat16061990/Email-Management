@@ -7,6 +7,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
+from django.db.models.functions import Lower
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -101,6 +102,8 @@ def student_detail_api(request: HttpRequest) -> JsonResponse:
         "status": student.status,
         "registration_date": str(student.registration_date) if student.registration_date else "",
         "expiry_date": str(student.expiry_date) if student.expiry_date else "",
+        "telegram_chat_id": student.telegram_chat_id,
+        "is_verified_telegram": student.is_verified_telegram,
         "courses": courses_ids,
         "enrollments": enrollments_data,
     })
@@ -274,8 +277,30 @@ def api_logout(request: HttpRequest) -> JsonResponse:
 def api_dashboard_list(request: HttpRequest) -> JsonResponse:
     query = request.GET.get("q", "").strip()
     page_number = request.GET.get("page", 1)
+    sort_by = request.GET.get("sort_by", "created_at").strip()
+    sort_order = request.GET.get("sort_order", "desc").strip()
 
-    qs = Customer.objects.prefetch_related("enrollments__course").order_by("-created_at")
+    allowed_sorts = {
+        "full_name": Lower("full_name"),
+        "customer_email": Lower("customer_email"),
+        "phone_number": "phone_number",
+        "created_at": "created_at",
+        "expiry_date": "expiry_date",
+        "status": "status",
+    }
+
+    sort_field = allowed_sorts.get(sort_by, "created_at")
+    if isinstance(sort_field, str):
+        if sort_order == "desc":
+            sort_field = f"-{sort_field}"
+        order_by_args = [sort_field, "-id"]
+    else:
+        if sort_order == "desc":
+            order_by_args = [sort_field.desc(), "-id"]
+        else:
+            order_by_args = [sort_field.asc(), "-id"]
+
+    qs = Customer.objects.prefetch_related("enrollments__course").order_by(*order_by_args)
     if query:
         qs = qs.filter(Q(full_name__icontains=query) | Q(customer_email__icontains=query) | Q(phone_number__icontains=query))
 
@@ -445,6 +470,7 @@ def api_student_detail(request: HttpRequest, id: int) -> JsonResponse:
         "registration_date": str(student.registration_date) if student.registration_date else None,
         "expiry_date": str(student.expiry_date) if student.expiry_date else None,
         "telegram_chat_id": student.telegram_chat_id,
+        "is_verified_telegram": student.is_verified_telegram,
         "created_at": student.created_at.isoformat(),
         "enrollments": enrollments,
     })
@@ -473,7 +499,27 @@ def api_dashboard_stats(request: HttpRequest) -> JsonResponse:
 @api_login_required
 def api_courses_list(request: HttpRequest) -> JsonResponse:
     page_number = request.GET.get("page", 1)
-    qs = Course.objects.annotate(student_count=Count("customers")).order_by("-created_at")
+    sort_by = request.GET.get("sort_by", "created_at").strip()
+    sort_order = request.GET.get("sort_order", "desc").strip()
+
+    allowed_sorts = {
+        "name": Lower("name"),
+        "student_count": "student_count",
+        "created_at": "created_at",
+    }
+
+    sort_field = allowed_sorts.get(sort_by, "created_at")
+    if isinstance(sort_field, str):
+        if sort_order == "desc":
+            sort_field = f"-{sort_field}"
+        order_by_args = [sort_field, "-id"]
+    else:
+        if sort_order == "desc":
+            order_by_args = [sort_field.desc(), "-id"]
+        else:
+            order_by_args = [sort_field.asc(), "-id"]
+
+    qs = Course.objects.annotate(student_count=Count("customers")).order_by(*order_by_args)
     paginator = Paginator(qs, 10)
     page_obj = paginator.get_page(page_number)
 

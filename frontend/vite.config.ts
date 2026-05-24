@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
@@ -11,5 +11,10 @@ export default defineConfig({
       '/courses/search-students/': { target: 'http://localhost:8000', changeOrigin: true },
       '/courses/update-website/': { target: 'http://localhost:8000', changeOrigin: true },
     },
+  },
+  test: {
+    globals: true,
+    environment: 'jsdom',
+    setupFiles: './src/test/setup.ts',
   },
 })

@@ -1,8 +1,11 @@
-import { useState } from 'react'
-import { useStudentSearch, useCreateStudent } from '../../hooks/useStudents'
+import { useState, useMemo } from 'react'
+import { useStudentSearch } from '../../hooks/useStudents'
 import { useEnrollStudent } from '../../hooks/useCourses'
 import { showToast } from '../shared/Toast'
 import type { StudentSearchResult } from '../../types/student'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
 
 interface Props {
   courseId: number
@@ -11,21 +14,20 @@ interface Props {
   onSuccess: () => void
 }
 
+type EnrollFormValues = {
+  customer_email?: string
+  full_name?: string
+  phone_number?: string
+  registration_date: string
+  expiry_date: string
+  status: string
+}
+
 export default function EnrollStudentModal({ courseId, courseName, onClose, onSuccess }: Props) {
   const [mode, setMode] = useState<'search' | 'new'>('search')
   const [searchQuery, setSearchQuery] = useState('')
   const [searchPage, setSearchPage] = useState(1)
   const [selectedStudent, setSelectedStudent] = useState<StudentSearchResult | null>(null)
-
-  // New student form
-  const [newEmail, setNewEmail] = useState('')
-  const [newName, setNewName] = useState('')
-  const [newPhone, setNewPhone] = useState('')
-  const [regDate, setRegDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [expDate, setExpDate] = useState(() => {
-    const d = new Date(); d.setFullYear(d.getFullYear() + 1); return d.toISOString().split('T')[0]
-  })
-  const [status, setStatus] = useState('ACTIVE')
 
   const { data: searchData, isLoading: searchLoading } = useStudentSearch({
     course_id: courseId,
@@ -34,47 +36,85 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
   })
 
   const enrollMutation = useEnrollStudent()
-  const createStudentMutation = useCreateStudent()
+
+  const schema = useMemo(() => {
+    return z.object({
+      customer_email: z.string().trim().optional(),
+      full_name: z.string().trim().optional(),
+      phone_number: z.string().trim().optional(),
+      registration_date: z.string().min(1, 'Ngày đăng ký không được để trống'),
+      expiry_date: z.string().min(1, 'Ngày hết hạn không được để trống'),
+      status: z.string().min(1, 'Trạng thái không được để trống'),
+    }).superRefine((data, ctx) => {
+      if (!selectedStudent) {
+        if (!data.customer_email) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['customer_email'],
+            message: 'Email không được để trống',
+          })
+        } else if (!z.string().email().safeParse(data.customer_email).success) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['customer_email'],
+            message: 'Email không đúng định dạng',
+          })
+        }
+      }
+    })
+  }, [selectedStudent])
+
+  const { register, handleSubmit, formState: { errors } } = useForm<EnrollFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      customer_email: '',
+      full_name: '',
+      phone_number: '',
+      registration_date: new Date().toISOString().split('T')[0],
+      expiry_date: (() => {
+        const d = new Date()
+        d.setFullYear(d.getFullYear() + 1)
+        return d.toISOString().split('T')[0]
+      })(),
+      status: 'ACTIVE',
+    },
+  })
 
   const handleSelectStudent = (student: StudentSearchResult) => {
     setSelectedStudent(student)
     setMode('search')
   }
 
-  const handleSubmit = () => {
+  const onSubmit = (data: EnrollFormValues) => {
     if (selectedStudent) {
       enrollMutation.mutate({
         course_id: courseId,
         student_id: selectedStudent.id,
-        registration_date: regDate,
-        expiry_date: expDate,
-        status,
+        registration_date: data.registration_date,
+        expiry_date: data.expiry_date,
+        status: data.status,
       }, {
         onSuccess: (res) => {
           showToast('success', `Đã đăng ký học viên vào khóa học.${res.voomly_synced ? ' (đã đồng bộ Voomly)' : ''}`)
           onSuccess()
         },
-        onError: (err: any) => showToast('error', err.message),
+        onError: (err: Error) => showToast('error', err.message),
       })
     } else {
-      if (!newEmail.trim()) {
-        showToast('error', 'Email không được để trống')
-        return
-      }
       enrollMutation.mutate({
         course_id: courseId,
-        customer_email: newEmail.trim(),
-        full_name: newName.trim(),
-        phone_number: newPhone.trim(),
-        registration_date: regDate,
-        expiry_date: expDate,
-        status,
+        customer_email: data.customer_email?.trim() || '',
+        full_name: data.full_name?.trim() || '',
+        phone_number: data.phone_number?.trim() || '',
+        registration_date: data.registration_date,
+        expiry_date: data.expiry_date,
+        status: data.status,
       }, {
         onSuccess: (res) => {
           showToast('success', `Đã thêm học viên vào khóa học.${res.voomly_synced ? ' (đã đồng bộ Voomly)' : ''}`)
           onSuccess()
         },
-        onError: (err: any) => showToast('error', err.message),
+        onError: (err: Error) => showToast('error', err.message),
       })
     }
   }
@@ -92,7 +132,7 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
           </button>
         </div>
 
-        <div className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 max-h-[70vh] overflow-y-auto space-y-4">
           {/* Search existing students */}
           {mode === 'search' && !selectedStudent && (
             <>
@@ -115,7 +155,7 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
                     {s.is_enrolled ? (
                       <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-100">Đã đăng ký</span>
                     ) : (
-                      <button onClick={() => setSelectedStudent(s)} className="px-3 py-1 rounded-lg bg-brand-500 text-white text-xs font-medium hover:bg-brand-600">Chọn</button>
+                      <button type="button" onClick={() => handleSelectStudent(s)} className="px-3 py-1 rounded-lg bg-brand-500 text-white text-xs font-medium hover:bg-brand-600">Chọn</button>
                     )}
                   </div>
                 ))}
@@ -124,16 +164,16 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
               {/* Pagination */}
               {searchData?.pagination && searchData.pagination.total_pages > 1 && (
                 <div className="flex items-center justify-center gap-1">
-                  <button onClick={() => setSearchPage((p) => Math.max(1, p - 1))} disabled={!searchData.pagination.has_prev}
+                  <button type="button" onClick={() => setSearchPage((p) => Math.max(1, p - 1))} disabled={!searchData.pagination.has_prev}
                     className="px-3 py-1 text-xs rounded text-gray-600 hover:bg-gray-100 disabled:text-gray-300">Trước</button>
                   <span className="text-xs text-gray-500">Trang {searchData.pagination.current_page}/{searchData.pagination.total_pages}</span>
-                  <button onClick={() => setSearchPage((p) => p + 1)} disabled={!searchData.pagination.has_next}
+                  <button type="button" onClick={() => setSearchPage((p) => p + 1)} disabled={!searchData.pagination.has_next}
                     className="px-3 py-1 text-xs rounded text-gray-600 hover:bg-gray-100 disabled:text-gray-300">Sau</button>
                 </div>
               )}
 
               <div className="text-center pt-2 border-t border-gray-100">
-                <button onClick={() => setMode('new')} className="text-sm text-brand-600 hover:text-brand-700 font-medium">
+                <button type="button" onClick={() => setMode('new')} className="text-sm text-brand-600 hover:text-brand-700 font-medium">
                   + Tạo học viên mới
                 </button>
               </div>
@@ -147,7 +187,7 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
                 <p className="text-sm font-medium text-gray-900">{selectedStudent.full_name || 'Học viên'}</p>
                 <p className="text-xs text-gray-500">{selectedStudent.customer_email}</p>
               </div>
-              <button onClick={() => setSelectedStudent(null)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">Chọn học viên khác</button>
+              <button type="button" onClick={() => setSelectedStudent(null)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">Chọn học viên khác</button>
             </div>
           )}
 
@@ -158,21 +198,24 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Email <span className="text-red-500">*</span></label>
-                  <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                  <input type="text" {...register('customer_email')}
+                    className={`w-full px-3 py-1.5 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
+                      errors.customer_email ? 'border-red-300 focus:border-red-300' : 'border-gray-200 focus:border-brand-300'
+                    }`} />
+                  {errors.customer_email && <p className="mt-1 text-xs text-red-500">{errors.customer_email.message}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Họ và Tên</label>
-                  <input type="text" value={newName} onChange={(e) => setNewName(e.target.value)}
+                  <input type="text" {...register('full_name')}
                     className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Số điện thoại</label>
-                  <input type="text" value={newPhone} onChange={(e) => setNewPhone(e.target.value)}
+                  <input type="text" {...register('phone_number')}
                     className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
                 </div>
               </div>
-              <button onClick={() => setMode('search')} className="text-xs text-brand-600 hover:text-brand-700 font-medium">Quay lại tìm kiếm</button>
+              <button type="button" onClick={() => setMode('search')} className="text-xs text-brand-600 hover:text-brand-700 font-medium">Quay lại tìm kiếm</button>
             </div>
           )}
 
@@ -181,17 +224,17 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-0.5">Ngày đăng ký</label>
-                <input type="date" value={regDate} onChange={(e) => setRegDate(e.target.value)}
+                <input type="date" {...register('registration_date')}
                   className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-0.5">Ngày hết hạn</label>
-                <input type="date" value={expDate} onChange={(e) => setExpDate(e.target.value)}
+                <input type="date" {...register('expiry_date')}
                   className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-0.5">Trạng thái</label>
-                <select value={status} onChange={(e) => setStatus(e.target.value)}
+                <select {...register('status')}
                   className="w-full px-2 py-1.5 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20">
                   <option value="ACTIVE">Đang hoạt động</option>
                   <option value="PENDING">Chờ xử lý</option>
@@ -203,13 +246,13 @@ export default function EnrollStudentModal({ courseId, courseName, onClose, onSu
 
           {/* Submit */}
           <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
-            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">Hủy</button>
-            <button onClick={handleSubmit} disabled={enrollMutation.isPending}
+            <button type="button" onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100">Hủy</button>
+            <button type="submit" disabled={enrollMutation.isPending}
               className="px-5 py-2 rounded-lg bg-gradient-to-r from-brand-500 to-accent-600 text-white text-sm font-medium hover:shadow-lg disabled:opacity-60">
               {enrollMutation.isPending ? 'Đang xử lý...' : 'Xác nhận đăng ký'}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   )

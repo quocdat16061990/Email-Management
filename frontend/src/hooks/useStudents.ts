@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   fetchStudentList,
   fetchStudentDetail,
@@ -12,10 +12,11 @@ import {
 import type { StudentSearchResult } from '../types/student'
 import type { Pagination } from '../types/api'
 
-export function useStudentList(params: { q?: string; page?: number }) {
+export function useStudentList(params: { q?: string; page?: number; sort_by?: string; sort_order?: 'asc' | 'desc' }) {
   return useQuery({
     queryKey: ['students', params],
     queryFn: () => fetchStudentList(params),
+    placeholderData: keepPreviousData,
   })
 }
 

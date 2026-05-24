@@ -51,11 +51,6 @@ echo - File .env: OK
 echo.
 
 echo [3/6] Cài thư viện Python...
-if not exist venv (
-    python -m venv venv
-    echo - Đã tạo môi trường ảo (venv)
-)
-call venv\Scripts\activate.bat
 python -m pip install --upgrade pip -q
 pip install -r requirements.txt
 pip install requests
@@ -90,7 +85,6 @@ echo.
 echo Chạy ứng dụng bằng 3 terminal riêng biệt:
 echo.
 echo Terminal 1 - Backend:
-echo   venv\Scripts\activate.bat
 echo   python manage.py runserver
 echo.
 echo Terminal 2 - Frontend:
@@ -98,7 +92,6 @@ echo   cd frontend
 echo   npm run dev
 echo.
 echo Terminal 3 - Telegram Bot:
-echo   venv\Scripts\activate.bat
 echo   python manage.py run_otp_bot
 echo.
 echo Link Web: http://localhost:5173/

@@ -6,6 +6,21 @@ import StatusBadge from '../components/shared/StatusBadge'
 import LoadingSpinner from '../components/shared/LoadingSpinner'
 import ErrorState from '../components/shared/ErrorState'
 import { showToast } from '../components/shared/Toast'
+import type { CourseLink, VoomlyStudent } from '../types/course'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+
+const quickEnrollSchema = z.object({
+  enrollEmail: z.string()
+    .trim()
+    .min(1, 'Email không được để trống')
+    .email('Email không đúng định dạng'),
+  enrollName: z.string().trim().optional(),
+  enrollPhone: z.string().trim().optional(),
+})
+
+type QuickEnrollValues = z.infer<typeof quickEnrollSchema>
 
 export default function CourseDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -14,27 +29,28 @@ export default function CourseDetailPage() {
 
   // Quick enroll inline
   const [showEnroll, setShowEnroll] = useState(false)
-  const [enrollEmail, setEnrollEmail] = useState('')
-  const [enrollName, setEnrollName] = useState('')
-  const [enrollPhone, setEnrollPhone] = useState('')
   const enrollMutation = useEnrollStudent()
+
+  const { register, handleSubmit: handleFormSubmit, formState: { errors: formErrors }, reset } = useForm<QuickEnrollValues>({
+    resolver: zodResolver(quickEnrollSchema),
+    defaultValues: {
+      enrollEmail: '',
+      enrollName: '',
+      enrollPhone: '',
+    },
+  })
 
   if (isLoading) return <LoadingSpinner />
   if (isError || !data) return <ErrorState onRetry={() => refetch()} />
 
   const { course, student_count, voomly_students, voomly_error } = data
 
-  const handleEnroll = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!enrollEmail.trim()) {
-      showToast('error', 'Email không được để trống')
-      return
-    }
+  const onSubmit = (data: QuickEnrollValues) => {
     enrollMutation.mutate({
       course_id: course.id,
-      customer_email: enrollEmail.trim(),
-      full_name: enrollName.trim(),
-      phone_number: enrollPhone.trim(),
+      customer_email: data.enrollEmail.trim(),
+      full_name: data.enrollName?.trim() || '',
+      phone_number: data.enrollPhone?.trim() || '',
       registration_date: new Date().toISOString().split('T')[0],
       expiry_date: new Date(new Date().setFullYear(new Date().getFullYear() + 1)).toISOString().split('T')[0],
       status: 'ACTIVE',
@@ -42,12 +58,10 @@ export default function CourseDetailPage() {
       onSuccess: (res) => {
         showToast('success', `Đã thêm học viên.${res.voomly_synced ? ' (đã đồng bộ Voomly)' : ''}`)
         setShowEnroll(false)
-        setEnrollEmail('')
-        setEnrollName('')
-        setEnrollPhone('')
+        reset()
         refetch()
       },
-      onError: (err: any) => showToast('error', err.message),
+      onError: (err: Error) => showToast('error', err.message),
     })
   }
 
@@ -94,7 +108,7 @@ export default function CourseDetailPage() {
                         Website Khóa Học
                       </a>
                     )}
-                    {(course.links || []).map((link: any, i: number) => (
+                    {(course.links || []).map((link: CourseLink, i: number) => (
                       <a key={i} href={link.url} target="_blank" rel="noopener noreferrer"
                         className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-purple-200 text-purple-700 text-xs font-medium hover:bg-purple-50 transition-colors">
                         {link.title}
@@ -122,22 +136,25 @@ export default function CourseDetailPage() {
 
           {/* Enroll form inline */}
           {showEnroll && (
-            <form onSubmit={handleEnroll} className="bg-white rounded-xl border border-brand-200 shadow-sm p-5 space-y-3">
+            <form onSubmit={handleFormSubmit(onSubmit)} className="bg-white rounded-xl border border-brand-200 shadow-sm p-5 space-y-3">
               <h4 className="font-bold text-brand-700 text-sm">Đăng ký học viên vào khóa học</h4>
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Email <span className="text-red-500">*</span></label>
-                  <input type="email" value={enrollEmail} onChange={(e) => setEnrollEmail(e.target.value)} required
-                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+                  <input type="text" {...register('enrollEmail')}
+                    className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
+                      formErrors.enrollEmail ? 'border-red-300 focus:border-red-300' : 'border-gray-200 focus:border-brand-300'
+                    }`} />
+                  {formErrors.enrollEmail && <p className="mt-1 text-xs text-red-500">{formErrors.enrollEmail.message}</p>}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Số điện thoại</label>
-                  <input type="text" value={enrollPhone} onChange={(e) => setEnrollPhone(e.target.value)}
+                  <input type="text" {...register('enrollPhone')}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-xs font-medium text-gray-600 mb-0.5">Họ và Tên</label>
-                  <input type="text" value={enrollName} onChange={(e) => setEnrollName(e.target.value)}
+                  <input type="text" {...register('enrollName')}
                     className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
                 </div>
                 <div className="flex items-end">
@@ -174,7 +191,7 @@ export default function CourseDetailPage() {
                   {(!voomly_students || voomly_students.length === 0) ? (
                     <tr><td colSpan={5} className="text-center py-8 text-sm text-gray-400 italic">Chưa có học viên nào trên Voomly.</td></tr>
                   ) : (
-                    voomly_students.map((s: any, i: number) => (
+                    voomly_students.map((s: VoomlyStudent, i: number) => (
                       <tr key={i} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">

@@ -7,6 +7,7 @@ export interface Student {
   registration_date: string | null;
   expiry_date: string | null;
   telegram_chat_id?: number | null;
+  is_verified_telegram?: boolean;
   created_at?: string;
   enrollments?: EnrollmentDetail[];
 }
@@ -27,16 +28,10 @@ export interface StudentListItem {
   full_name: string;
   customer_email: string;
   phone_number: string;
-  status: string;
+  status: 'ACTIVE' | 'PENDING' | 'EXPIRED';
   registration_date: string | null;
   expiry_date: string | null;
-  enrollments: {
-    course_id: number;
-    course_name: string;
-    registration_date: string | null;
-    expiry_date: string | null;
-    status: string;
-  }[];
+  enrollments: EnrollmentDetail[];
 }
 
 export interface StudentSearchResult {

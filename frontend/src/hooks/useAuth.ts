@@ -1,17 +1,16 @@
-import { useMutation } from '@tanstack/react-query'
-import { login, logout, type LoginInput } from '../api/auth'
-import { useAuth } from '../context/AuthContext'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { login, logout, fetchDashboardStats, type LoginInput } from '../api/auth'
 import { useNavigate } from 'react-router-dom'
 
 export function useLogin() {
-  const { checkAuth } = useAuth()
+  const qc = useQueryClient()
   const navigate = useNavigate()
 
   return useMutation({
     mutationFn: (data: LoginInput) => login(data),
     onSuccess: (res) => {
       if (res.success) {
-        checkAuth()
+        qc.invalidateQueries({ queryKey: ['auth-status'] })
         navigate('/dashboard')
       }
     },
@@ -20,13 +19,21 @@ export function useLogin() {
 
 export function useLogout() {
   const navigate = useNavigate()
-  const { checkAuth } = useAuth()
+  const qc = useQueryClient()
 
   return useMutation({
     mutationFn: () => logout(),
     onSuccess: () => {
-      checkAuth()
+      qc.invalidateQueries({ queryKey: ['auth-status'] })
+      qc.clear()
       navigate('/login')
     },
+  })
+}
+
+export function useDashboardStats() {
+  return useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: fetchDashboardStats,
   })
 }

@@ -8,7 +8,7 @@ export interface StudentListResponse {
   operator_email: string
 }
 
-export function fetchStudentList(params: { q?: string; page?: number }): Promise<StudentListResponse> {
+export function fetchStudentList(params: { q?: string; page?: number; sort_by?: string; sort_order?: 'asc' | 'desc' }): Promise<StudentListResponse> {
   return apiGet<StudentListResponse>('/api/dashboard/', params as Record<string, string | number | undefined>)
 }
 

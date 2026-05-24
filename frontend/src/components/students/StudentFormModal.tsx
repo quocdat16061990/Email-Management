@@ -1,15 +1,44 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useCreateStudent, useUpdateStudent } from '../../hooks/useStudents'
 import { showToast } from '../shared/Toast'
 import Avatar from '../shared/Avatar'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+import type { Student, EnrollmentDetail } from '../../types/student'
+
+const studentFormSchema = z.object({
+  customer_email: z.string()
+    .trim()
+    .min(1, 'Email không được để trống')
+    .email('Email không đúng định dạng'),
+  full_name: z.string().trim().optional(),
+  phone_number: z.string().trim().optional(),
+  selectedCourses: z.record(
+    z.coerce.number(),
+    z.object({
+      registration_date: z.string(),
+      expiry_date: z.string(),
+      status: z.string(),
+    })
+  ),
+})
+
+type StudentFormValues = z.infer<typeof studentFormSchema>
 
 interface CourseOption {
   id: number
   name: string
 }
 
+interface SelectedCourseState {
+  registration_date: string
+  expiry_date: string
+  status: string
+}
+
 interface Props {
-  student?: any
+  student?: Student
   courses: CourseOption[]
   onClose: () => void
   onSuccess: () => void
@@ -20,22 +49,46 @@ export default function StudentFormModal({ student, courses, onClose, onSuccess 
   const updateMutation = useUpdateStudent()
   const isEdit = !!student
 
-  const [email, setEmail] = useState(student?.customer_email || '')
-  const [name, setName] = useState(student?.full_name || '')
-  const [phone, setPhone] = useState(student?.phone_number || '')
-  const [selectedCourses, setSelectedCourses] = useState<Record<number, any>>(() => {
-    const map: Record<number, any> = {}
-    if (student?.enrollments) {
-      student.enrollments.forEach((e: any) => {
-        map[e.course_id] = {
-          registration_date: e.registration_date || '',
-          expiry_date: e.expiry_date || '',
-          status: e.status || 'ACTIVE',
-        }
+  const { register, handleSubmit, formState: { errors }, reset, watch, setValue } = useForm<StudentFormValues>({
+    resolver: zodResolver(studentFormSchema),
+    defaultValues: {
+      customer_email: '',
+      full_name: '',
+      phone_number: '',
+      selectedCourses: {},
+    },
+  })
+
+  const selectedCourses = watch('selectedCourses') || {}
+  const name = watch('full_name') || ''
+
+  useEffect(() => {
+    if (student) {
+      const map: Record<number, SelectedCourseState> = {}
+      if (student.enrollments) {
+        student.enrollments.forEach((e: EnrollmentDetail) => {
+          map[e.course_id] = {
+            registration_date: e.registration_date || '',
+            expiry_date: e.expiry_date || '',
+            status: e.status || 'ACTIVE',
+          }
+        })
+      }
+      reset({
+        customer_email: student.customer_email || '',
+        full_name: student.full_name || '',
+        phone_number: student.phone_number || '',
+        selectedCourses: map,
+      })
+    } else {
+      reset({
+        customer_email: '',
+        full_name: '',
+        phone_number: '',
+        selectedCourses: {},
       })
     }
-    return map
-  })
+  }, [student, reset])
 
   const toggleCourse = (courseId: number) => {
     const next = { ...selectedCourses }
@@ -51,34 +104,32 @@ export default function StudentFormModal({ student, courses, onClose, onSuccess 
         status: 'ACTIVE',
       }
     }
-    setSelectedCourses(next)
+    setValue('selectedCourses', next)
   }
 
-  const updateCourseField = (courseId: number, field: string, value: string) => {
-    setSelectedCourses((prev) => ({
-      ...prev,
-      [courseId]: { ...prev[courseId], [field]: value },
-    }))
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!email.trim()) {
-      showToast('error', 'Email không được để trống')
-      return
+  const updateCourseField = (courseId: number, field: keyof SelectedCourseState, value: string) => {
+    const next = { ...selectedCourses }
+    if (next[courseId]) {
+      next[courseId] = {
+        ...next[courseId],
+        [field]: value,
+      }
+      setValue('selectedCourses', next)
     }
+  }
 
-    const enrollments = Object.entries(selectedCourses).map(([courseId, data]: [string, any]) => ({
+  const onSubmit = (data: StudentFormValues) => {
+    const enrollments = Object.entries(data.selectedCourses || {}).map(([courseId, details]) => ({
       course_id: parseInt(courseId),
-      registration_date: data.registration_date,
-      expiry_date: data.expiry_date,
-      status: data.status,
+      registration_date: details.registration_date,
+      expiry_date: details.expiry_date,
+      status: details.status,
     }))
 
     const payload = {
-      customer_email: email.trim(),
-      full_name: name.trim(),
-      phone_number: phone.trim(),
+      customer_email: data.customer_email.trim(),
+      full_name: data.full_name?.trim() || '',
+      phone_number: data.phone_number?.trim() || '',
       enrollments,
     }
 
@@ -88,7 +139,7 @@ export default function StudentFormModal({ student, courses, onClose, onSuccess 
           showToast('success', 'Đã cập nhật học viên thành công.')
           onSuccess()
         },
-        onError: (err: any) => showToast('error', err.message),
+        onError: (err: Error) => showToast('error', err.message),
       })
     } else {
       createMutation.mutate(payload, {
@@ -96,7 +147,7 @@ export default function StudentFormModal({ student, courses, onClose, onSuccess 
           showToast('success', 'Đã thêm học viên thành công.')
           onSuccess()
         },
-        onError: (err: any) => showToast('error', err.message),
+        onError: (err: Error) => showToast('error', err.message),
       })
     }
   }
@@ -120,22 +171,25 @@ export default function StudentFormModal({ student, courses, onClose, onSuccess 
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
           {/* Basic info */}
           <div className="grid grid-cols-2 gap-4">
             <div className="col-span-2">
               <label className="block text-sm font-semibold text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
-              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300" />
+              <input type="text" {...register('customer_email')}
+                className={`w-full px-3 py-2 rounded-lg border text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
+                  errors.customer_email ? 'border-red-300 focus:border-red-300' : 'border-gray-200 focus:border-brand-300'
+                }`} />
+              {errors.customer_email && <p className="mt-1 text-xs text-red-500">{errors.customer_email.message}</p>}
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Họ và Tên</label>
-              <input type="text" value={name} onChange={(e) => setName(e.target.value)}
+              <input type="text" {...register('full_name')}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300" />
             </div>
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1">Số điện thoại</label>
-              <input type="text" value={phone} onChange={(e) => setPhone(e.target.value)}
+              <input type="text" {...register('phone_number')}
                 className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 focus:border-brand-300" />
             </div>
           </div>

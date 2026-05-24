@@ -80,14 +80,6 @@ else
     PYTHON=python
 fi
 
-# Create venv if not exists
-if [ ! -d "venv" ]; then
-    $PYTHON -m venv venv
-    ok "Đã tạo môi trường ảo"
-fi
-
-source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null || fail "Không activate được venv"
-
 pip install -q -r requirements.txt 2>&1 | tail -1
 ok "Python packages: $(pip list 2>/dev/null | wc -l) packages"
 
@@ -106,8 +98,6 @@ fi
 # ─── Step 5: Migrate Database ──────────────────────
 log "${YELLOW}[5/6] Migrate database Supabase...${NC}"
 
-source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null
-
 $PYTHON manage.py migrate --run-syncdb 2>&1
 ok "Database migrated"
 
@@ -115,8 +105,6 @@ $PYTHON manage.py showmigrations 2>&1 | grep -c "\[X\]" > /dev/null && ok "Tất
 
 # ─── Step 6: Sync Voomly ───────────────────────────
 log "${YELLOW}[6/6] Đồng bộ dữ liệu từ Voomly...${NC}"
-
-source venv/bin/activate 2>/dev/null || source venv/Scripts/activate 2>/dev/null
 
 $PYTHON -c "
 import os, django, time
@@ -150,7 +138,6 @@ echo -e "  ${CYAN}Chạy ứng dụng:${NC}"
 echo ""
 echo -e "  ${YELLOW}Terminal 1 — Backend:${NC}"
 echo "    cd $PROJECT_DIR"
-echo "    source venv/bin/activate"
 echo "    python manage.py runserver"
 echo ""
 echo -e "  ${YELLOW}Terminal 2 — Frontend:${NC}"
@@ -159,7 +146,6 @@ echo "    npm run dev"
 echo ""
 echo -e "  ${YELLOW}Terminal 3 — Telegram Bot:${NC}"
 echo "    cd $PROJECT_DIR"
-echo "    source venv/bin/activate"
 echo "    python manage.py run_otp_bot"
 echo ""
 echo -e "  ${CYAN}Web:${NC} http://localhost:5173/"

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { useStudentList, useDeleteStudent, useSyncStudents } from '../hooks/useStudents'
 import { useCourseList } from '../hooks/useCourses'
-import { fetchDashboardStats } from '../api/auth'
+import { useDashboardStats } from '../hooks/useAuth'
 import SearchInput from '../components/shared/SearchInput'
 import Pagination from '../components/shared/Pagination'
 import StatusBadge from '../components/shared/StatusBadge'
@@ -11,24 +11,27 @@ import ErrorState from '../components/shared/ErrorState'
 import { showToast } from '../components/shared/Toast'
 import StudentFormModal from '../components/students/StudentFormModal'
 import { Link } from 'react-router-dom'
+import type { Student } from '../types/student'
 
 export default function DashboardPage() {
   const [query, setQuery] = useState('')
   const [page, setPage] = useState(1)
   const [searchValue, setSearchValue] = useState('')
-  const [editStudent, setEditStudent] = useState<any>(null)
+  const [editStudent, setEditStudent] = useState<Student | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  const { data, isLoading, isError, refetch } = useStudentList({ q: query, page })
-  const statsQuery = useDashboardStats()
+  const { data, isLoading, isError, refetch } = useStudentList({
+    q: query,
+    page,
+    sort_by: sortBy,
+    sort_order: sortOrder,
+  })
   const deleteMutation = useDeleteStudent()
   const syncMutation = useSyncStudents()
   const coursesQuery = useCourseList({ page: 1 })
-  const [stats, setStats] = useState<any>(null)
-
-  useEffect(() => {
-    fetchDashboardStats().then(setStats).catch(() => {})
-  }, [])
+  const { data: stats } = useDashboardStats()
 
   const handleSearch = (val: string) => {
     setSearchValue(val)
@@ -36,18 +39,28 @@ export default function DashboardPage() {
     setPage(1)
   }
 
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+    setPage(1)
+  }
+
   const handleDelete = (id: number, name: string) => {
     if (!window.confirm(`Bạn có chắc muốn xóa học viên "${name}"?`)) return
     deleteMutation.mutate(id, {
       onSuccess: () => showToast('success', 'Đã xóa học viên thành công.'),
-      onError: (err: any) => showToast('error', err.message),
+      onError: (err: Error) => showToast('error', err.message),
     })
   }
 
   const handleSync = () => {
     syncMutation.mutate(undefined, {
       onSuccess: (res) => showToast('success', `Đồng bộ thành công! ${res.result.total_students} học viên.`),
-      onError: (err: any) => showToast('error', err.message),
+      onError: (err: Error) => showToast('error', err.message),
     })
   }
 
@@ -56,7 +69,7 @@ export default function DashboardPage() {
     setShowForm(true)
   }
 
-  const openEdit = (student: any) => {
+  const openEdit = (student: Student) => {
     setEditStudent(student)
     setShowForm(true)
   }
@@ -104,13 +117,38 @@ export default function DashboardPage() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Học viên</th>
-                <th className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Email</th>
-                <th className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Số điện thoại</th>
+              <tr className="border-b border-gray-100 bg-gray-50/50 select-none">
+                <th onClick={() => handleSort('full_name')} className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Học viên
+                    {sortBy === 'full_name' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('customer_email')} className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Email
+                    {sortBy === 'customer_email' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('phone_number')} className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Số điện thoại
+                    {sortBy === 'phone_number' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
                 <th className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Khóa học</th>
-                <th className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Trạng thái</th>
-                <th className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Hết hạn</th>
+                <th onClick={() => handleSort('status')} className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Trạng thái
+                    {sortBy === 'status' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('expiry_date')} className="text-left px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Hết hạn
+                    {sortBy === 'expiry_date' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
                 <th className="text-right px-2 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Hành động</th>
               </tr>
             </thead>
@@ -192,7 +230,7 @@ export default function DashboardPage() {
 
       {showForm && (
         <StudentFormModal
-          student={editStudent}
+          student={editStudent || undefined}
           courses={(coursesQuery.data?.courses || []).map((c) => ({ id: c.id, name: c.name }))}
           onClose={() => setShowForm(false)}
           onSuccess={() => {
@@ -203,8 +241,4 @@ export default function DashboardPage() {
       )}
     </div>
   )
-}
-
-function useDashboardStats() {
-  return useStudentList({ page: 1 }) as any
 }
