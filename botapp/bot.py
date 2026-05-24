@@ -217,6 +217,16 @@ async def handle_email(update: Update, context: ContextTypes.DEFAULT_TYPE) -> in
         )
         return ASK_EMAIL
 
+    from .models import Customer
+    customer = await sync_to_async(Customer.objects.filter(customer_email=email_text).first)()
+    if customer and customer.is_verified_telegram:
+        await update.message.reply_text(
+            "❌ Email này đã được liên kết thành công với tài khoản Telegram.\n"
+            "Bạn không thể yêu cầu gửi lại mã xác thực liên kết nữa.",
+            reply_markup=restart_keyboard(),
+        )
+        return ConversationHandler.END
+
     import random
     otp_code = f"{random.randint(100000, 999999)}"
 
