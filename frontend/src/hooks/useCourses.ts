@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query'
 import {
   fetchCourseList,
   fetchCourseDetail,
@@ -12,10 +12,11 @@ import {
   type EnrollStudentInput,
 } from '../api/courses'
 
-export function useCourseList(params: { page?: number }) {
+export function useCourseList(params: { page?: number; sort_by?: string; sort_order?: 'asc' | 'desc' }) {
   return useQuery({
     queryKey: ['courses', params],
     queryFn: () => fetchCourseList(params),
+    placeholderData: keepPreviousData,
   })
 }
 

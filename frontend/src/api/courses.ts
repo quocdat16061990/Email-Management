@@ -8,7 +8,7 @@ export interface CourseListResponse {
   pagination: Pagination
 }
 
-export function fetchCourseList(params: { page?: number }): Promise<CourseListResponse> {
+export function fetchCourseList(params: { page?: number; sort_by?: string; sort_order?: 'asc' | 'desc' }): Promise<CourseListResponse> {
   return apiGet<CourseListResponse>('/api/courses/', params as Record<string, string | number | undefined>)
 }
 

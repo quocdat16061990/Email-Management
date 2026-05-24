@@ -1,3 +1,5 @@
+import axios, { AxiosError } from 'axios'
+
 export class ApiError extends Error {
   constructor(message: string, public status: number) {
     super(message)
@@ -7,56 +9,50 @@ export class ApiError extends Error {
 
 const BASE = ''
 
-export async function apiFetch<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const url = `${BASE}${endpoint}`
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    },
-    ...options,
-  })
+const api = axios.create({
+  baseURL: BASE,
+  withCredentials: true,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+})
 
-  if (!res.ok) {
-    let msg = `HTTP ${res.status}`
-    try {
-      const body = await res.json()
-      msg = body.error || msg
-    } catch { /* ignore */ }
-    throw new ApiError(msg, res.status)
+// Convert Axios errors to our standard ApiError for backward compatibility
+api.interceptors.response.use(
+  (response) => response,
+  (error: AxiosError<{ error?: string }>) => {
+    const status = error.response?.status || 500
+    const msg = error.response?.data?.error || `HTTP ${status}`
+    return Promise.reject(new ApiError(msg, status))
   }
+)
 
-  return res.json()
-}
-
-export function apiGet<T>(endpoint: string, params?: Record<string, string | number | undefined>): Promise<T> {
-  let url = endpoint
-  if (params) {
-    const search = new URLSearchParams()
-    Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== '') search.append(k, String(v))
-    })
-    const qs = search.toString()
-    if (qs) url += `?${qs}`
-  }
-  return apiFetch<T>(url)
-}
-
-export function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
-  return apiFetch<T>(endpoint, {
-    method: 'POST',
-    body: JSON.stringify(body),
+export async function apiFetch<T>(endpoint: string, options: any = {}): Promise<T> {
+  const response = await api({
+    url: endpoint,
+    method: options.method || 'GET',
+    data: options.body ? JSON.parse(options.body) : undefined,
+    headers: options.headers,
   })
+  return response.data
 }
 
-export function apiPut<T>(endpoint: string, body: unknown): Promise<T> {
-  return apiFetch<T>(endpoint, {
-    method: 'PUT',
-    body: JSON.stringify(body),
-  })
+export async function apiGet<T>(endpoint: string, params?: Record<string, string | number | undefined>): Promise<T> {
+  const response = await api.get<T>(endpoint, { params })
+  return response.data
 }
 
-export function apiDelete<T>(endpoint: string): Promise<T> {
-  return apiFetch<T>(endpoint, { method: 'DELETE' })
+export async function apiPost<T>(endpoint: string, body: unknown): Promise<T> {
+  const response = await api.post<T>(endpoint, body)
+  return response.data
+}
+
+export async function apiPut<T>(endpoint: string, body: unknown): Promise<T> {
+  const response = await api.put<T>(endpoint, body)
+  return response.data
+}
+
+export async function apiDelete<T>(endpoint: string): Promise<T> {
+  const response = await api.delete<T>(endpoint)
+  return response.data
 }

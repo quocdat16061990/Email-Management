@@ -1,9 +1,30 @@
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useCreateCourse, useUpdateCourse } from '../../hooks/useCourses'
 import { showToast } from '../shared/Toast'
+import type { Course } from '../../types/course'
+import { useForm, useFieldArray } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+
+const courseSchema = z.object({
+  name: z.string().trim().min(1, 'Tên khóa học không được để trống'),
+  spotlight_id: z.string().trim().optional(),
+  description: z.string().trim().optional(),
+  web_link: z.string().trim().optional().refine(val => !val || val.startsWith('http://') || val.startsWith('https://'), {
+    message: 'Link website phải bắt đầu bằng http:// hoặc https://',
+  }),
+  links: z.array(
+    z.object({
+      title: z.string().trim(),
+      url: z.string().trim(),
+    })
+  ),
+})
+
+type CourseFormValues = z.infer<typeof courseSchema>
 
 interface Props {
-  course?: any
+  course?: Course
   onClose: () => void
   onSuccess: () => void
 }
@@ -13,54 +34,52 @@ export default function CourseFormModal({ course, onClose, onSuccess }: Props) {
   const updateMutation = useUpdateCourse()
   const isEdit = !!course
 
-  const [name, setName] = useState('')
-  const [spotlightId, setSpotlightId] = useState('')
-  const [description, setDescription] = useState('')
-  const [webLink, setWebLink] = useState('')
-  const [links, setLinks] = useState<{ title: string; url: string }[]>([])
+  const { register, control, handleSubmit, formState: { errors }, reset } = useForm<CourseFormValues>({
+    resolver: zodResolver(courseSchema),
+    defaultValues: {
+      name: '',
+      spotlight_id: '',
+      description: '',
+      web_link: '',
+      links: [],
+    },
+  })
+
+  const { fields, append, remove } = useFieldArray({
+    control,
+    name: 'links',
+  })
 
   useEffect(() => {
     if (course) {
-      setName(course.name || '')
-      setSpotlightId(course.spotlight_id || '')
-      setDescription(course.description || '')
-      setWebLink(course.web_link || '')
-      setLinks(course.links || [])
+      reset({
+        name: course.name || '',
+        spotlight_id: course.spotlight_id || '',
+        description: course.description || '',
+        web_link: course.web_link || '',
+        links: course.links || [],
+      })
     }
-  }, [course])
+  }, [course, reset])
 
-  const addLink = () => setLinks([...links, { title: '', url: '' }])
-  const removeLink = (i: number) => setLinks(links.filter((_, idx) => idx !== i))
-  const updateLink = (i: number, field: 'title' | 'url', value: string) => {
-    const next = [...links]
-    next[i] = { ...next[i], [field]: value }
-    setLinks(next)
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!name.trim()) {
-      showToast('error', 'Tên khóa học không được để trống')
-      return
-    }
-
+  const onSubmit = (data: CourseFormValues) => {
     const payload = {
-      name: name.trim(),
-      spotlight_id: spotlightId.trim(),
-      description: description.trim(),
-      web_link: webLink.trim(),
-      links: links.filter((l) => l.title.trim() && l.url.trim()),
+      name: data.name.trim(),
+      spotlight_id: data.spotlight_id?.trim() || '',
+      description: data.description?.trim() || '',
+      web_link: data.web_link?.trim() || '',
+      links: (data.links || []).filter((l) => l.title.trim() && l.url.trim()),
     }
 
     if (isEdit) {
       updateMutation.mutate({ id: course.id, data: payload }, {
         onSuccess: () => { showToast('success', 'Đã cập nhật khóa học.'); onSuccess() },
-        onError: (err: any) => showToast('error', err.message),
+        onError: (err: Error) => showToast('error', err.message),
       })
     } else {
       createMutation.mutate(payload, {
         onSuccess: () => { showToast('success', 'Đã tạo khóa học.'); onSuccess() },
-        onError: (err: any) => showToast('error', err.message),
+        onError: (err: Error) => showToast('error', err.message),
       })
     }
   }
@@ -77,25 +96,27 @@ export default function CourseFormModal({ course, onClose, onSuccess }: Props) {
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+        <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Tên khóa học <span className="text-red-500">*</span></label>
-            <input type="text" value={name} onChange={(e) => setName(e.target.value)} required
+            <input type="text" {...register('name')}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            {errors.name && <p className="mt-1 text-xs text-red-500">{errors.name.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Spotlight ID</label>
-            <input type="text" value={spotlightId} onChange={(e) => setSpotlightId(e.target.value)} placeholder="Ví dụ: rwbteni8pn"
+            <input type="text" {...register('spotlight_id')} placeholder="Ví dụ: rwbteni8pn"
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Link website</label>
-            <input type="url" value={webLink} onChange={(e) => setWebLink(e.target.value)}
+            <input type="text" {...register('web_link')}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20" />
+            {errors.web_link && <p className="mt-1 text-xs text-red-500">{errors.web_link.message}</p>}
           </div>
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1">Mô tả</label>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3}
+            <textarea {...register('description')} rows={3}
               className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500/20 resize-none" />
           </div>
 
@@ -103,16 +124,16 @@ export default function CourseFormModal({ course, onClose, onSuccess }: Props) {
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-sm font-semibold text-gray-700">Liên kết học tập</label>
-              <button type="button" onClick={addLink} className="text-xs text-brand-600 hover:text-brand-700 font-medium">+ Thêm liên kết</button>
+              <button type="button" onClick={() => append({ title: '', url: '' })} className="text-xs text-brand-600 hover:text-brand-700 font-medium">+ Thêm liên kết</button>
             </div>
             <div className="space-y-2">
-              {links.map((link, i) => (
-                <div key={i} className="flex gap-2 items-start">
-                  <input type="text" value={link.title} onChange={(e) => updateLink(i, 'title', e.target.value)} placeholder="Tên"
+              {fields.map((field, i) => (
+                <div key={field.id} className="flex gap-2 items-start">
+                  <input type="text" {...register(`links.${i}.title`)} placeholder="Tên"
                     className="flex-1 px-2 py-1.5 rounded border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500" />
-                  <input type="url" value={link.url} onChange={(e) => updateLink(i, 'url', e.target.value)} placeholder="URL"
+                  <input type="url" {...register(`links.${i}.url`)} placeholder="URL"
                     className="flex-[2] px-2 py-1.5 rounded border border-gray-200 text-xs focus:outline-none focus:ring-1 focus:ring-brand-500" />
-                  <button type="button" onClick={() => removeLink(i)} className="p-1.5 text-gray-300 hover:text-red-500">
+                  <button type="button" onClick={() => remove(i)} className="p-1.5 text-gray-300 hover:text-red-500">
                     <svg className="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
                   </button>
                 </div>

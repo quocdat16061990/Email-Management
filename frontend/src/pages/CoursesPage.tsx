@@ -15,13 +15,29 @@ export default function CoursesPage() {
   const [editCourse, setEditCourse] = useState<any>(null)
   const [enrollCourseId, setEnrollCourseId] = useState<number | null>(null)
   const [enrollCourseName, setEnrollCourseName] = useState('')
+  const [sortBy, setSortBy] = useState('created_at')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  const { data, isLoading, isError, refetch } = useCourseList({ page })
+  const { data, isLoading, isError, refetch } = useCourseList({
+    page,
+    sort_by: sortBy,
+    sort_order: sortOrder,
+  })
   const deleteMutation = useDeleteCourse()
   const syncMutation = useSyncCourses()
   const updateWebsiteMutation = useUpdateWebsite()
 
   const [editingWebsite, setEditingWebsite] = useState<{ id: number; name: string; url: string } | null>(null)
+
+  const handleSort = (field: string) => {
+    if (sortBy === field) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortBy(field)
+      setSortOrder('asc')
+    }
+    setPage(1)
+  }
 
   const handleDelete = (id: number, name: string) => {
     if (!window.confirm(`Bạn có chắc muốn xóa khóa học "${name}"?`)) return
@@ -77,11 +93,26 @@ export default function CoursesPage() {
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50">
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Khóa học</th>
+              <tr className="border-b border-gray-100 bg-gray-50/50 select-none">
+                <th onClick={() => handleSort('name')} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Khóa học
+                    {sortBy === 'name' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
                 <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Website</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Học viên</th>
-                <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ngày tạo</th>
+                <th onClick={() => handleSort('student_count')} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Học viên
+                    {sortBy === 'student_count' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
+                <th onClick={() => handleSort('created_at')} className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-brand-600 hover:bg-gray-100/50 transition-colors">
+                  <div className="flex items-center gap-0.5">
+                    Ngày tạo
+                    {sortBy === 'created_at' && (sortOrder === 'asc' ? ' ▲' : ' ▼')}
+                  </div>
+                </th>
                 <th className="text-right px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Hành động</th>
               </tr>
             </thead>

@@ -1,5 +1,6 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, type ReactNode } from 'react'
 import { fetchDashboardStats } from '../api/auth'
+import { useQuery } from '@tanstack/react-query'
 
 interface AuthContextType {
   isAuthenticated: boolean
@@ -16,20 +17,19 @@ const AuthContext = createContext<AuthContextType>({
 })
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
-  const [isLoading, setIsLoading] = useState(true)
-  const [operatorEmail, setOperatorEmail] = useState('')
+  const { data, isLoading, isSuccess, refetch } = useQuery({
+    queryKey: ['auth-status'],
+    queryFn: fetchDashboardStats,
+    retry: false,
+    refetchOnWindowFocus: false,
+  })
+
+  const isAuthenticated = isSuccess && !!data
+  const operatorEmail = ''
 
   const checkAuth = () => {
-    fetchDashboardStats()
-      .then(() => setIsAuthenticated(true))
-      .catch(() => setIsAuthenticated(false))
-      .finally(() => setIsLoading(false))
+    refetch()
   }
-
-  useEffect(() => {
-    checkAuth()
-  }, [])
 
   return (
     <AuthContext.Provider value={{ isAuthenticated, isLoading, operatorEmail, checkAuth }}>

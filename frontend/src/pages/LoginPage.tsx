@@ -1,15 +1,32 @@
-import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { useLogin } from '../hooks/useAuth'
 import { Navigate } from 'react-router-dom'
 import { showToast } from '../components/shared/Toast'
+import { useForm } from 'react-hook-form'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { z } from 'zod'
+
+const loginSchema = z.object({
+  email: z.string()
+    .trim()
+    .min(1, 'Email không được để trống')
+    .email('Email không hợp lệ'),
+  password: z.string().min(1, 'Mật khẩu không được để trống'),
+})
+
+type LoginFormValues = z.infer<typeof loginSchema>
 
 export default function LoginPage() {
   const { isAuthenticated, isLoading } = useAuth()
   const loginMutation = useLogin()
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [errors, setErrors] = useState({ email: '', password: '' })
+
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: '',
+    },
+  })
 
   if (isLoading) {
     return (
@@ -21,22 +38,11 @@ export default function LoginPage() {
 
   if (isAuthenticated) return <Navigate to="/dashboard" replace />
 
-  const validate = () => {
-    const errs = { email: '', password: '' }
-    if (!email.trim()) errs.email = 'Email không được để trống'
-    else if (!email.includes('@')) errs.email = 'Email không hợp lệ'
-    if (!password) errs.password = 'Mật khẩu không được để trống'
-    setErrors(errs)
-    return !errs.email && !errs.password
-  }
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!validate()) return
+  const onSubmit = (data: LoginFormValues) => {
     loginMutation.mutate(
-      { email: email.trim(), password },
+      { email: data.email, password: data.password },
       {
-        onError: (err: any) => {
+        onError: (err: Error) => {
           showToast('error', err.message || 'Đăng nhập thất bại')
         },
       },
@@ -56,33 +62,31 @@ export default function LoginPage() {
             <p className="text-sm text-gray-500 mt-1">Đăng nhập để quản lý hệ thống</p>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5">
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
               <input
                 type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
                 placeholder="admin@example.com"
+                {...register('email')}
                 className={`w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
                   errors.email ? 'border-red-300 focus:border-red-300' : 'border-gray-200 focus:border-brand-300'
                 }`}
               />
-              {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email}</p>}
+              {errors.email && <p className="mt-1 text-xs text-red-500">{errors.email.message}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-semibold text-gray-700 mb-1.5">Mật khẩu</label>
               <input
                 type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
+                {...register('password')}
                 className={`w-full px-4 py-2.5 rounded-xl border text-sm transition-all focus:outline-none focus:ring-2 focus:ring-brand-500/20 ${
                   errors.password ? 'border-red-300 focus:border-red-300' : 'border-gray-200 focus:border-brand-300'
                 }`}
               />
-              {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password}</p>}
+              {errors.password && <p className="mt-1 text-xs text-red-500">{errors.password.message}</p>}
             </div>
 
             <button
